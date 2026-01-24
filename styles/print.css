@@ -1,9 +1,3 @@
-/**
- * Print Styles for Template & Note Printing (PR-7)
- * 
- * Ensures stable page breaks, consistent margins, and printable layout
- */
-
 @media print {
   /* Page Setup */
   @page {
@@ -11,7 +5,19 @@
     margin: 2cm;
   }
 
-  /* Remove unnecessary elements from print */
+  /* Hide UI elements */
+  .no-print,
+  button,
+  [role="button"],
+  nav,
+  header,
+  .border-b.bg-card,
+  [class*="TabsList"],
+  [class*="sidebar"] {
+    display: none !important;
+  }
+
+  /* Show only editor content */
   body {
     margin: 0;
     padding: 0;
@@ -19,37 +25,9 @@
     color: black;
   }
 
-  /* Hide interactive elements */
-  .no-print,
-  button,
-  [role="button"],
-  .element-palette,
-  .group-wise-preview,
-  .element-properties-panel,
-  .template-metadata-header,
-  .navbar,
-  nav,
-  header {
-    display: none !important;
-  }
-
-  /* Main content */
-  main,
-  .print-content {
-    width: 100%;
-    max-width: 100%;
-    padding: 0;
-    margin: 0;
-    page-break-inside: avoid;
-  }
-
-  /* Page breaks for sections */
-  .page-break {
-    page-break-after: always;
-  }
-
-  .page-break-inside {
-    page-break-inside: avoid;
+  .prose {
+    max-width: 100% !important;
+    padding: 0 !important;
   }
 
   /* Typography */
@@ -69,17 +47,13 @@
     padding-bottom: 0.2cm;
   }
 
-  h3,
-  h4,
-  h5,
-  h6 {
+  h3, h4, h5, h6 {
     font-size: 14px;
     margin: 0.5cm 0 0.2cm 0;
     page-break-after: avoid;
   }
 
-  p,
-  li {
+  p, li {
     margin: 0.2cm 0;
     line-height: 1.6;
     orphans: 3;
@@ -87,14 +61,9 @@
   }
 
   /* Lists */
-  ul,
-  ol {
+  ul, ol {
     margin: 0.3cm 0;
     padding-left: 1cm;
-  }
-
-  li {
-    margin-bottom: 0.1cm;
   }
 
   /* Tables */
@@ -105,61 +74,39 @@
     page-break-inside: avoid;
   }
 
-  table,
-  th,
-  td {
+  table, th, td {
     border: 1px solid #999;
   }
 
   th {
-    background-color: #f0f0f0;
+    background-color: #f0f0f0 !important;
     font-weight: bold;
     padding: 0.2cm;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
 
   td {
     padding: 0.2cm;
   }
 
-  /* Form Elements Display */
-  input[type="text"],
-  input[type="datetime-local"],
-  input[type="date"],
-  input[type="time"],
-  textarea,
-  select {
-    border: 1px solid #000;
-    background: white;
+  /* Form Elements */
+  .form-element,
+  [data-form-element] {
+    display: block;
+    margin: 0.3cm 0;
     padding: 0.2cm;
-    font-family: monospace;
-  }
-
-  /* Inline form elements */
-  .inline-input,
-  .form-element {
-    display: inline-block;
-    border-bottom: 1px solid #000;
-    min-width: 5cm;
-    margin: 0 0.2cm;
-  }
-
-  /* Checkboxes and radio buttons */
-  input[type="checkbox"],
-  input[type="radio"] {
-    print-color-adjust: exact;
-    -webkit-print-color-adjust: exact;
-  }
-
-  /* Card and container spacing */
-  .card,
-  .section {
-    page-break-inside: avoid;
-    margin: 0.5cm 0;
     border: 1px solid #ccc;
-    padding: 0.5cm;
+    page-break-inside: avoid;
   }
 
-  /* Remove colors/backgrounds for print */
+  /* Images */
+  img {
+    max-width: 100%;
+    page-break-inside: avoid;
+  }
+
+  /* Remove backgrounds */
   * {
     background: transparent !important;
     color: black !important;
@@ -167,65 +114,8 @@
     text-shadow: none !important;
   }
 
-  a,
-  a:visited {
-    text-decoration: underline;
-    color: black !important;
-  }
-
-  /* Metadata header for print */
-  .template-info {
-    margin-bottom: 1cm;
-    padding-bottom: 0.5cm;
-    border-bottom: 2px solid #000;
-    page-break-after: avoid;
-  }
-
-  .template-info-item {
-    display: inline-block;
-    margin-right: 1.5cm;
-    margin-bottom: 0.2cm;
-    font-size: 11px;
-  }
-
-  .template-info-label {
-    font-weight: bold;
-  }
-
-  /* Footer with date/time */
-  .print-footer {
-    margin-top: 1cm;
-    padding-top: 0.5cm;
-    border-top: 1px solid #999;
-    font-size: 10px;
-    text-align: right;
-    page-break-inside: avoid;
-  }
-
-  /* Group headers in preview/print */
-  .group-header {
-    margin: 0.5cm 0 0.3cm 0;
-    padding: 0.2cm;
-    background: #f5f5f5 !important;
-    font-weight: bold;
-    page-break-after: avoid;
-  }
-
-  /* Ensure images print properly */
-  img {
-    max-width: 100%;
-    page-break-inside: avoid;
-  }
-
-  /* Remove scrollbars and overflow */
-  body,
-  html {
-    overflow: visible;
-  }
-
-  .scroll-area,
-  [role="region"] {
-    overflow: visible;
-    max-height: none;
+  /* Keep table header backgrounds */
+  th {
+    background-color: #f0f0f0 !important;
   }
 }

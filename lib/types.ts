@@ -4,12 +4,14 @@ export interface FormElement {
   elementKey: string
   defaultValue: string
   required: boolean
+  placeholder?: string
+  helpText?: string
+  metadata?: Record<string, any>
   hasMic?: boolean
   options?: SelectOptions
-  // New properties (PR-0+)
   group_id?: string | null
   data_binding?: DataBinding | null
-  dataField?: string // Field name for data binding in notes
+  dataField?: string
 }
 
 export interface DataBinding {

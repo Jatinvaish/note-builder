@@ -40,19 +40,23 @@ export function addNoteVersion(noteId: string, data: Record<string, any>, change
   const note = getNote(noteId)
   if (!note) return null
 
-  const newVersion = (note.versionHistory || []).length + 1
-  const versionEntry: VersionEntry = {
-    version: newVersion,
-    timestamp: new Date().toISOString(),
-    data,
-    changedFields,
-  }
-
   if (!note.versionHistory) {
     note.versionHistory = []
   }
 
-  note.versionHistory.push(versionEntry)
+  const contentChanged = JSON.stringify(note.consultationData) !== JSON.stringify(data)
+  
+  if (contentChanged) {
+    const newVersion = note.versionHistory.length + 1
+    const versionEntry: VersionEntry = {
+      version: newVersion,
+      timestamp: new Date().toISOString(),
+      data,
+      changedFields,
+    }
+    note.versionHistory.push(versionEntry)
+  }
+
   note.consultationData = data
   note.updatedAt = new Date().toISOString()
 

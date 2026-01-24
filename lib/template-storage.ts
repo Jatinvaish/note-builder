@@ -1,7 +1,21 @@
-import { normalizeTemplate } from './compat-layer'
 import type { Template } from './types'
 
 export const STORAGE_KEY = "templates"
+
+function normalizeTemplate(template: any): Template {
+  return {
+    id: template.id || `template-${Date.now()}`,
+    templateName: template.templateName || 'Untitled',
+    templateDescription: template.templateDescription || '',
+    templateType: template.templateType || 'normal',
+    templateContent: template.templateContent || { type: 'doc', content: [] },
+    versionHistory: template.versionHistory || [],
+    createdAt: template.createdAt || new Date().toISOString(),
+    updatedAt: template.updatedAt || new Date().toISOString(),
+    status: template.status || 'active',
+    groups: template.groups || [],
+  }
+}
 
 export function getTemplates(): Template[] {
   if (typeof window === "undefined") return []
@@ -20,37 +34,29 @@ export function getTemplates(): Template[] {
 export function saveTemplate(template: any): Template {
   if (typeof window === "undefined") return template
   
-  // Normalize template on save for backward compatibility
   const normalized = normalizeTemplate(template)
   const templates = getTemplates()
   const index = templates.findIndex((t: any) => t.id === normalized.id)
 
-  // Ensure versionHistory is initialized
   if (!normalized.versionHistory) {
     normalized.versionHistory = []
   }
 
-  // Add new version entry if content has changed
-  const existingTemplate = templates[index]
+  const existingTemplate = index >= 0 ? templates[index] : null
+  
   if (existingTemplate) {
-    // Compare template content and other properties
     const contentChanged = JSON.stringify(existingTemplate.templateContent) !== JSON.stringify(normalized.templateContent)
-    const groupsChanged = JSON.stringify(existingTemplate.groups) !== JSON.stringify(normalized.groups)
-    const metadataChanged = existingTemplate.templateName !== normalized.templateName || 
-                           existingTemplate.templateDescription !== normalized.templateDescription
     
-    if (contentChanged || groupsChanged || metadataChanged) {
-      // Create version entry with the OLD content (before this change)
+    if (contentChanged) {
       const newVersion = {
-        version: (normalized.versionHistory.length || 0) + 1,
+        version: normalized.versionHistory.length + 1,
         timestamp: new Date().toISOString(),
-        templateContent: existingTemplate.templateContent,
+        templateContent: normalized.templateContent,
         changedFields: [],
       }
       normalized.versionHistory.push(newVersion)
     }
-  } else if (normalized.versionHistory.length === 0) {
-    // First save - create initial version
+  } else {
     normalized.versionHistory.push({
       version: 1,
       timestamp: new Date().toISOString(),

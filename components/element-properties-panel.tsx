@@ -124,6 +124,19 @@ export function ElementPropertiesPanel({
             />
           </div>
 
+          {/* Element Key */}
+          <div className="space-y-1">
+            <Label htmlFor="elementKey" className="text-xs font-medium">
+              Element Key
+            </Label>
+            <Input
+              id="elementKey"
+              value={attrs.elementKey || ""}
+              disabled
+              className="h-7 text-xs bg-muted"
+            />
+          </div>
+
           {/* Type */}
           <div className="space-y-1">
             <Label htmlFor="type" className="text-xs font-medium">
@@ -151,7 +164,7 @@ export function ElementPropertiesPanel({
             </Label>
             <Select
               value={attrs.group_id || "noGroup"}
-              onValueChange={(val) => handleUpdate("group_id", val || null)}
+              onValueChange={(val) => handleUpdate("group_id", val === "noGroup" ? null : val)}
             >
               <SelectTrigger id="group" className="h-7 text-xs">
                 <SelectValue placeholder="No group" />
@@ -192,6 +205,34 @@ export function ElementPropertiesPanel({
               className="h-7 text-xs"
             />
           </div>
+
+          {/* Placeholder */}
+          <div className="space-y-1">
+            <Label htmlFor="placeholder" className="text-xs font-medium">
+              Placeholder
+            </Label>
+            <Input
+              id="placeholder"
+              value={attrs.placeholder || ""}
+              onChange={(e) => handleUpdate("placeholder", e.target.value)}
+              placeholder="Placeholder text"
+              className="h-7 text-xs"
+            />
+          </div>
+
+          {/* Help Text */}
+          <div className="space-y-1">
+            <Label htmlFor="helpText" className="text-xs font-medium">
+              Help Text
+            </Label>
+            <Input
+              id="helpText"
+              value={attrs.helpText || ""}
+              onChange={(e) => handleUpdate("helpText", e.target.value)}
+              placeholder="Help text for users"
+              className="h-7 text-xs"
+            />
+          </div>
         </TabsContent>
 
         {/* Data Field Tab */}
@@ -222,6 +263,29 @@ export function ElementPropertiesPanel({
                 Field ID: <code className="font-mono">{attrs.dataField}</code>
               </p>
             )}
+          </div>
+
+          <div className="space-y-2 pt-3 border-t">
+            <Label htmlFor="metadata" className="text-xs font-medium">
+              Metadata (JSON)
+            </Label>
+            <textarea
+              id="metadata"
+              value={attrs.metadata ? JSON.stringify(attrs.metadata, null, 2) : ""}
+              onChange={(e) => {
+                try {
+                  const parsed = e.target.value ? JSON.parse(e.target.value) : null
+                  handleUpdate("metadata", parsed)
+                } catch {
+                  // Invalid JSON, don't update
+                }
+              }}
+              placeholder='{"key": "value"}'
+              className="w-full h-32 text-xs font-mono p-2 border rounded"
+            />
+            <p className="text-xs text-muted-foreground">
+              Add custom metadata as JSON
+            </p>
           </div>
         </TabsContent>
 

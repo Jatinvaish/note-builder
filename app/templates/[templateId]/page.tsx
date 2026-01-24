@@ -27,6 +27,8 @@ export default function EditTemplatePage() {
   }, [templateId])
 
   const handleSave = async (savedTemplate: Template) => {
+    const { saveTemplate } = await import("@/lib/template-storage")
+    saveTemplate(savedTemplate)
     router.push("/templates")
   }
 
