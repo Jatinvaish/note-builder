@@ -57,7 +57,7 @@ const ELEMENT_TYPES = [
     description: "Signature field",
   },
   {
-    id: "speech",
+    id: "voice",
     label: "Voice Input",
     icon: Mic,
     description: "Voice-to-text field",

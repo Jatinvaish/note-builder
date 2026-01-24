@@ -23,6 +23,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Badge } from "@/components/ui/badge"
 import { Download, History } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
+import { VoiceInput } from "@/components/voice-input"
+import { formatDateTime } from "@/lib/date-utils"
 
 interface NoteEditorProps {
   template: Template
@@ -276,6 +278,7 @@ export function NoteEditor({ template, formData, onDataChange, versionHistory = 
                       element={element}
                       value={formData[element.elementKey] || ""}
                       onChange={(val) => onDataChange(element.elementKey, val)}
+                      onVoiceInput={(text) => onDataChange(element.elementKey, text)}
                     />
                   ))}
                 </div>
@@ -297,6 +300,7 @@ export function NoteEditor({ template, formData, onDataChange, versionHistory = 
                       element={element}
                       value={formData[element.elementKey] || ""}
                       onChange={(val) => onDataChange(element.elementKey, val)}
+                      onVoiceInput={(text) => onDataChange(element.elementKey, text)}
                     />
                   ))}
               </div>
@@ -321,7 +325,7 @@ export function NoteEditor({ template, formData, onDataChange, versionHistory = 
                       <div className="flex items-center gap-2 mb-1">
                         <Badge variant="outline">v{version.version}</Badge>
                         <span className="text-xs text-muted-foreground">
-                          {new Date(version.timestamp).toLocaleString()}
+                          {formatDateTime(version.timestamp)}
                         </span>
                       </div>
                     </div>
@@ -362,13 +366,32 @@ export function NoteEditor({ template, formData, onDataChange, versionHistory = 
   )
 }
 
-const FieldInput = memo(function FieldInput({ element, value, onChange }: any) {
+const FieldInput = memo(function FieldInput({ element, value, onChange, onVoiceInput }: any) {
   const { elementType, label, required, placeholder, options } = element
+
+  if (elementType === "voice") {
+    return (
+      <div className="flex items-center gap-1">
+        <Label className="text-[10px] w-20 flex-shrink-0">
+          {label}{required && <span className="text-red-500">*</span>}
+        </Label>
+        <div className="flex-1 flex items-center gap-1">
+          <Input
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+            className="h-6 text-[10px] flex-1"
+          />
+          <VoiceInput onTranscribed={onVoiceInput} />
+        </div>
+      </div>
+    )
+  }
 
   if (elementType === "input" || elementType === "datetime") {
     return (
       <div className="flex items-center gap-1">
-        <Label className="text-[10px] w-24 flex-shrink-0">
+        <Label className="text-[10px] w-20 flex-shrink-0">
           {label}{required && <span className="text-red-500">*</span>}
         </Label>
         <Input
@@ -385,7 +408,7 @@ const FieldInput = memo(function FieldInput({ element, value, onChange }: any) {
   if (elementType === "textarea") {
     return (
       <div className="flex items-start gap-1">
-        <Label className="text-[10px] w-24 flex-shrink-0 pt-1">
+        <Label className="text-[10px] w-20 flex-shrink-0 pt-1">
           {label}{required && <span className="text-red-500">*</span>}
         </Label>
         <Textarea

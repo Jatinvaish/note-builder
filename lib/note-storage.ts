@@ -67,7 +67,7 @@ export function getNoteVersion(noteId: string, version: number) {
   const note = getNote(noteId)
   if (!note) return null
 
-  const versionEntry = note.versionHistory?.find((v) => v.version === version)
+  const versionEntry = note.versionHistory?.find((v:any) => v.version === version)
   return versionEntry ? versionEntry.data : null
 }
 

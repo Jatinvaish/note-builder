@@ -5,6 +5,7 @@ import Link from "next/link"
 import { getNotes, inactivateNote } from "@/lib/note-storage"
 import { Button } from "@/components/ui/button"
 import { Plus, Edit, Trash2, FileText } from "lucide-react"
+import { formatDateTime } from "@/lib/date-utils"
 
 export default function NotesPage() {
   const [notes, setNotes] = useState<any[]>([])
@@ -51,8 +52,8 @@ export default function NotesPage() {
           <div className="grid gap-4">
             {notes.map((note) => {
               const versionCount = note.versionHistory?.length || 0
-              const createdDate = new Date(note.createdAt).toLocaleDateString()
-              const updatedDate = new Date(note.updatedAt).toLocaleDateString()
+              const createdDate = formatDateTime(note.createdAt)
+              const updatedDate = formatDateTime(note.updatedAt)
 
               return (
                 <div key={note.id} className="border border-border rounded-lg p-4 hover:bg-accent transition-colors">

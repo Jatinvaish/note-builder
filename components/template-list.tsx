@@ -5,6 +5,7 @@ import type { Template } from "@/lib/types"
 import { fetchTemplates, deleteTemplate } from "@/lib/template-utils"
 import { Button } from "@/components/ui/button"
 import { Eye, Edit, Trash2, Plus } from "lucide-react"
+import { formatDateTime } from "@/lib/date-utils"
 
 interface TemplateListProps {
   onEdit: (template: Template) => void
@@ -77,7 +78,7 @@ export function TemplateList({ onEdit, onPreview, onNew }: TemplateListProps) {
                 <h3 className="font-semibold">{template.templateName}</h3>
                 <p className="text-sm text-muted-foreground">{template.templateDescription}</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Updated {new Date(template.updatedAt).toLocaleDateString()}
+                  Updated {formatDateTime(template.updatedAt)}
                 </p>
               </div>
               <div className="flex gap-2">

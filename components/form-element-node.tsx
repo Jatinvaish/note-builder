@@ -15,6 +15,7 @@ const ELEMENT_COLORS: Record<string, { bg: string; border: string; text: string 
   textarea: { bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700" },
   datetime: { bg: "bg-orange-50", border: "border-orange-200", text: "text-orange-700" },
   signature: { bg: "bg-pink-50", border: "border-pink-200", text: "text-pink-700" },
+  voice: { bg: "bg-indigo-50", border: "border-indigo-200", text: "text-indigo-700" },
 }
 
 export function FormElementNode({ node }: FormElementNodeProps) {
