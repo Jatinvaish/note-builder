@@ -76,6 +76,7 @@ const ELEMENT_TYPES = [
   { id: "textarea", label: "Text Area", icon: FileText },
   { id: "datetime", label: "Date/Time", icon: Calendar },
   { id: "signature", label: "Signature", icon: PenTool },
+  { id: "voice_to_text", label: "Voice to Text", icon: FileText },
 ]
 
 export function FreeFormEditor({
@@ -146,7 +147,11 @@ export function FreeFormEditor({
       },
     },
     onUpdate: ({ editor: e }) => {
-      onTemplateContentChange?.(e.getJSON())
+      if (onTemplateContentChange) {
+        requestAnimationFrame(() => {
+          onTemplateContentChange(e.getJSON())
+        })
+      }
     },
   })
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo, memo } from "react"
+import { useState, useEffect, useMemo, memo, useRef } from "react"
 import { useEditor, EditorContent } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Underline from "@tiptap/extension-underline"
@@ -21,7 +21,7 @@ import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
-import { Download, Clock } from "lucide-react"
+import { Download, Clock, Mic, MicOff } from "lucide-react"
 
 interface NoteEditorProps {
   templates: any[]
@@ -116,7 +116,18 @@ export function NoteEditor({
     })
 
     if (updated) {
-      editor.view.dispatch(tr)
+      const newTr = editor.state.tr
+      state.doc.descendants((node, pos) => {
+        if (node.type.name === "formElement") {
+          const elementKey = node.attrs.elementKey
+          const newValue = formData[elementKey] || ""
+          newTr.setNodeMarkup(pos, undefined, {
+            ...node.attrs,
+            defaultValue: newValue,
+          })
+        }
+      })
+      editor.view.dispatch(newTr)
     }
   }, [formData, editor])
 
@@ -165,8 +176,36 @@ export function NoteEditor({
           return `<table>${rows}</table>`
 
         case "formElement":
-          const value = data[node.attrs?.elementKey] || ""
-          return `<strong>${node.attrs?.label || "Field"}:</strong> ${value || "____________________________"}`
+          const elementType = node.attrs?.elementType
+          const fieldValue = data[node.attrs?.elementKey]
+          
+          if (elementType === "checkbox") {
+            const checked = fieldValue === true ? "<strong>☑</strong>" : "☐"
+            return `<span>${checked}</span>`
+          }
+          
+          if (elementType === "select" || elementType === "dropdown") {
+            return `<span><strong>${fieldValue || ""}</strong></span>`
+          }
+          
+          if (elementType === "signature") {
+            if (fieldValue && typeof fieldValue === 'string') {
+              try {
+                const paths = JSON.parse(fieldValue)
+                if (Array.isArray(paths) && paths.length > 0) {
+                  const pathElements = paths.map(p => `<path d="${p}" stroke="#000" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />`).join('')
+                  return `<svg width="150" height="60" style="display: inline-block; vertical-align: middle; margin: 0 4px;">${pathElements}</svg>`
+                }
+              } catch {}
+            }
+            return ``
+          }
+          
+          if (elementType === "input" || elementType === "textarea" || elementType === "datetime" || elementType === "voice_to_text") {
+            return `<span><strong>${fieldValue || ""}</strong></span>`
+          }
+          
+          return `<span>${fieldValue || ""}</span>`
 
         case "image":
           return `<img src="${node.attrs?.src || ""}" style="max-width: 100%;" />`
@@ -226,7 +265,17 @@ export function NoteEditor({
   }
 
   const handlePdfPreview = () => {
-    const content = editor?.getJSON() || selectedTemplate.templateContent
+    if (!selectedTemplate || !editor) {
+      toast({ title: "Error", description: "No content to preview", variant: "destructive" })
+      return
+    }
+    
+    const content = editor.getJSON()
+    if (!content || !content.content) {
+      toast({ title: "Error", description: "Invalid content", variant: "destructive" })
+      return
+    }
+    
     const html = generatePdfHtml(content, formData, selectedTemplate.templateName)
     setPdfHtml(html)
     setIsPdfPreviewOpen(true)
@@ -362,11 +411,11 @@ export function NoteEditor({
       </div>
 
       <Dialog open={isPdfPreviewOpen} onOpenChange={setIsPdfPreviewOpen}>
-        <DialogContent className="max-w-[90vw] w-full max-h-[90vh] flex flex-col">
-          <DialogHeader>
+        <DialogContent className="max-w-[1400px] w-full max-h-[90vh] flex flex-col">
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle>PDF Preview</DialogTitle>
           </DialogHeader>
-          <div className="border rounded-md bg-white flex-1 overflow-y-auto p-6" dangerouslySetInnerHTML={{ __html: pdfHtml }} />
+          <div className="border rounded-md bg-white flex-1 overflow-y-auto p-8" dangerouslySetInnerHTML={{ __html: pdfHtml }} />
           <DialogFooter className="flex-shrink-0">
             <Button variant="ghost" onClick={() => setIsPdfPreviewOpen(false)}>Cancel</Button>
             <Button onClick={handlePdfDownload} className="gap-1">
@@ -406,6 +455,54 @@ export function NoteEditor({
 
 const FieldInput = memo(function FieldInput({ element, value, onChange }: any) {
   const { elementType, label, required, placeholder, options } = element
+  const [isRecording, setIsRecording] = useState(false)
+  const [isSignatureOpen, setIsSignatureOpen] = useState(false)
+  const recognitionRef = useRef<any>(null)
+  const isDrawingRef = useRef(false)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'webkitSpeechRecognition' in window) {
+      const SpeechRecognition = (window as any).webkitSpeechRecognition
+      recognitionRef.current = new SpeechRecognition()
+      recognitionRef.current.continuous = true
+      recognitionRef.current.interimResults = true
+      recognitionRef.current.lang = 'en-US'
+
+      recognitionRef.current.onresult = (event: any) => {
+        let transcript = ''
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript
+        }
+        onChange(value + ' ' + transcript)
+      }
+
+      recognitionRef.current.onerror = () => {
+        setIsRecording(false)
+      }
+
+      recognitionRef.current.onend = () => {
+        setIsRecording(false)
+      }
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop()
+      }
+    }
+  }, [])
+
+  const toggleRecording = () => {
+    if (!recognitionRef.current) return
+
+    if (isRecording) {
+      recognitionRef.current.stop()
+      setIsRecording(false)
+    } else {
+      recognitionRef.current.start()
+      setIsRecording(true)
+    }
+  }
 
   if (elementType === "input" || elementType === "datetime") {
     return (
@@ -440,6 +537,33 @@ const FieldInput = memo(function FieldInput({ element, value, onChange }: any) {
     )
   }
 
+  if (elementType === "voice_to_text") {
+    return (
+      <div className="flex items-start gap-1">
+        <Label className="text-[10px] w-20 flex-shrink-0 pt-1">
+          {label}{required && <span className="text-red-500">*</span>}
+        </Label>
+        <div className="flex-1 flex gap-1">
+          <Textarea
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+            className="min-h-[60px] text-[10px] flex-1"
+          />
+          <Button
+            type="button"
+            size="sm"
+            variant={isRecording ? "destructive" : "outline"}
+            onClick={toggleRecording}
+            className="h-6 w-6 p-0 flex-shrink-0"
+          >
+            {isRecording ? <MicOff className="w-3 h-3" /> : <Mic className="w-3 h-3" />}
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   if (elementType === "checkbox") {
     return (
       <div className="flex items-center gap-1">
@@ -455,7 +579,162 @@ const FieldInput = memo(function FieldInput({ element, value, onChange }: any) {
     )
   }
 
-  if (elementType === "select") {
+  if (elementType === "signature") {
+    const [currentPath, setCurrentPath] = useState<string>("")
+    const [allPaths, setAllPaths] = useState<string[]>([])
+    const [historyStep, setHistoryStep] = useState(-1)
+    const svgRef = useRef<SVGSVGElement>(null)
+    const isDrawingRef = useRef(false)
+    const pathRef = useRef<string>("")
+
+    useEffect(() => {
+      if (value && typeof value === 'string') {
+        try {
+          const paths = JSON.parse(value)
+          if (Array.isArray(paths)) {
+            setAllPaths(paths)
+            setHistoryStep(paths.length - 1)
+          }
+        } catch {}
+      }
+    }, [value])
+
+    const startDrawing = (e: React.MouseEvent<SVGSVGElement>) => {
+      if (!svgRef.current) return
+      isDrawingRef.current = true
+      const rect = svgRef.current.getBoundingClientRect()
+      const x = e.clientX - rect.left
+      const y = e.clientY - rect.top
+      pathRef.current = `M ${x} ${y}`
+      setCurrentPath(pathRef.current)
+    }
+
+    const draw = (e: React.MouseEvent<SVGSVGElement>) => {
+      if (!isDrawingRef.current || !svgRef.current) return
+      const rect = svgRef.current.getBoundingClientRect()
+      const x = e.clientX - rect.left
+      const y = e.clientY - rect.top
+      pathRef.current += ` L ${x} ${y}`
+      setCurrentPath(pathRef.current)
+    }
+
+    const stopDrawing = () => {
+      if (isDrawingRef.current && pathRef.current) {
+        const newPaths = allPaths.slice(0, historyStep + 1)
+        newPaths.push(pathRef.current)
+        setAllPaths(newPaths)
+        setHistoryStep(newPaths.length - 1)
+        pathRef.current = ""
+        setCurrentPath("")
+      }
+      isDrawingRef.current = false
+    }
+
+    const undo = () => {
+      if (historyStep > 0) {
+        setHistoryStep(historyStep - 1)
+      }
+    }
+
+    const redo = () => {
+      if (historyStep < allPaths.length - 1) {
+        setHistoryStep(historyStep + 1)
+      }
+    }
+
+    const clearSignature = () => {
+      setAllPaths([])
+      setHistoryStep(-1)
+      setCurrentPath("")
+      pathRef.current = ""
+    }
+
+    const saveSignature = () => {
+      const pathsToSave = allPaths.slice(0, historyStep + 1)
+      onChange(JSON.stringify(pathsToSave))
+      setIsSignatureOpen(false)
+    }
+
+    const displayPaths = allPaths.slice(0, historyStep + 1)
+
+    return (
+      <>
+        <div className="flex items-center gap-1">
+          <Label className="text-[10px] w-20 flex-shrink-0">
+            {label}{required && <span className="text-red-500">*</span>}
+          </Label>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setIsSignatureOpen(true)}
+            className="h-6 text-[10px] flex-1"
+          >
+            {value ? "Edit Signature" : "Add Signature"}
+          </Button>
+        </div>
+        {value && (
+          <div className="ml-[84px] mt-1">
+            <svg width="150" height="60" className="border rounded bg-white">
+              {(() => {
+                try {
+                  const paths = JSON.parse(value)
+                  return Array.isArray(paths) && paths.map((path: string, i: number) => (
+                    <path key={i} d={path} stroke="#000" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                  ))
+                } catch {
+                  return null
+                }
+              })()}
+            </svg>
+          </div>
+        )}
+        <Dialog open={isSignatureOpen} onOpenChange={setIsSignatureOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader><DialogTitle>Draw Your Signature</DialogTitle></DialogHeader>
+            <div className="space-y-3">
+              <div className="flex gap-2 items-center">
+                <Button size="sm" variant="outline" onClick={undo} disabled={historyStep <= 0} className="h-7">
+                  <span className="text-xs">Undo</span>
+                </Button>
+                <Button size="sm" variant="outline" onClick={redo} disabled={historyStep >= allPaths.length - 1} className="h-7">
+                  <span className="text-xs">Redo</span>
+                </Button>
+                <Button size="sm" variant="outline" onClick={clearSignature} className="h-7">
+                  <span className="text-xs">Clear</span>
+                </Button>
+              </div>
+              <svg
+                ref={svgRef}
+                width="500"
+                height="250"
+                className="border-2 rounded cursor-crosshair bg-white w-full"
+                style={{ touchAction: 'none' }}
+                onMouseDown={startDrawing}
+                onMouseMove={draw}
+                onMouseUp={stopDrawing}
+                onMouseLeave={stopDrawing}
+              >
+                {displayPaths.map((path, i) => (
+                  <path key={i} d={path} stroke="#000" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                ))}
+                {currentPath && (
+                  <path d={currentPath} stroke="#000" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                )}
+              </svg>
+              <div className="flex gap-2 justify-end">
+                <Button size="sm" variant="outline" onClick={() => setIsSignatureOpen(false)}>Cancel</Button>
+                <Button size="sm" onClick={saveSignature}>Save Signature</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </>
+    )
+  }
+
+  if (elementType === "select" || elementType === "dropdown") {
+    const selectOptions = options?.values || options || []
     return (
       <div className="flex items-center gap-1">
         <Label className="text-[10px] w-24 flex-shrink-0">
@@ -466,7 +745,7 @@ const FieldInput = memo(function FieldInput({ element, value, onChange }: any) {
             <SelectValue placeholder={placeholder || "Select..."} />
           </SelectTrigger>
           <SelectContent>
-            {options?.values?.map((opt: string) => (
+            {Array.isArray(selectOptions) && selectOptions.map((opt: string) => (
               <SelectItem key={opt} value={opt} className="text-[10px]">
                 {opt}
               </SelectItem>

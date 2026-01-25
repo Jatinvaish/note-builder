@@ -53,11 +53,13 @@ export function TemplateBuilder({
   const [versions, setVersions] = useState<TemplateVersion[]>(template?.versionHistory || [])
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null)
   const [isVersionDialogOpen, setIsVersionDialogOpen] = useState(false)
-  const [autoSaveEnabled] = useState(false)
-  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null)
   const [lastSaved, setLastSaved] = useState<Date | null>(template ? new Date(template.updatedAt) : null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [editor, setEditor] = useState<any>(null)
+
+  const handleTemplateContentChange = useCallback((content: any) => {
+    setTemplateContent(content)
+  }, [])
 
   // Group handlers
   const handleGroupCreate = useCallback((newGroup: Omit<Group, "id">) => {
@@ -405,8 +407,8 @@ export function TemplateBuilder({
             </Label>
             <Input
               id="template-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              defaultValue={name}
+              onBlur={(e) => setName(e.target.value)}
               placeholder="Template name"
               className="h-7 text-xs max-w-xs"
             />
@@ -525,7 +527,7 @@ export function TemplateBuilder({
             selectedElementId={selectedElementId}
             groups={groups}
             onElementSelected={setSelectedElementId}
-            onTemplateContentChange={setTemplateContent}
+            onTemplateContentChange={handleTemplateContentChange}
             onEditorReady={setEditor}
           />
         </div>

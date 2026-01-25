@@ -21,7 +21,18 @@ const ELEMENT_COLORS: Record<string, { bg: string; border: string; text: string 
 export function FormElementNode({ node }: FormElementNodeProps) {
   const { elementType, label, elementKey, required, defaultValue } = node.attrs
   const colors = ELEMENT_COLORS[elementType] || ELEMENT_COLORS.input
-  const displayValue = defaultValue || "[Empty]"
+  
+  let displayValue = defaultValue || "[Empty]"
+  let isSignature = false
+  
+  if (elementType === "signature" && defaultValue) {
+    try {
+      const paths = JSON.parse(defaultValue)
+      if (Array.isArray(paths) && paths.length > 0) {
+        isSignature = true
+      }
+    } catch {}
+  }
 
   return (
     <NodeViewWrapper className="inline-flex items-center gap-1">
@@ -32,7 +43,22 @@ export function FormElementNode({ node }: FormElementNodeProps) {
       >
         <Settings className="w-3 h-3" />
         <span className="font-semibold">{label}:</span>
-        <span className={defaultValue ? "" : "italic opacity-60"}>{displayValue}</span>
+        {isSignature ? (
+          <svg width="80" height="30" className="inline-block">
+            {(() => {
+              try {
+                const paths = JSON.parse(defaultValue)
+                return Array.isArray(paths) && paths.map((path: string, i: number) => (
+                  <path key={i} d={path} stroke="#000" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                ))
+              } catch {
+                return null
+              }
+            })()}
+          </svg>
+        ) : (
+          <span className={defaultValue ? "" : "italic opacity-60"}>{displayValue}</span>
+        )}
         {required && <span className="text-red-500">*</span>}
       </span>
     </NodeViewWrapper>
