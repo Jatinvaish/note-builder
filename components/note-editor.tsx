@@ -7,35 +7,48 @@ import Underline from "@tiptap/extension-underline"
 import Link from "@tiptap/extension-link"
 import Image from "@tiptap/extension-image"
 import TextAlign from "@tiptap/extension-text-align"
-import {Table} from "@tiptap/extension-table"
+import { Table } from "@tiptap/extension-table"
 import TableRow from "@tiptap/extension-table-row"
 import TableCell from "@tiptap/extension-table-cell"
 import TableHeader from "@tiptap/extension-table-header"
 import { FormElementExtension } from "@/lib/tiptap-extensions"
-import type { Template, VersionEntry } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { Download, History } from "lucide-react"
-import { toast } from "@/hooks/use-toast"
-import { VoiceInput } from "@/components/voice-input"
-import { formatDateTime } from "@/lib/date-utils"
+import { useToast } from "@/hooks/use-toast"
+import { Download, Clock } from "lucide-react"
 
 interface NoteEditorProps {
-  template: Template
+  templates: any[]
+  selectedTemplate: any
   formData: Record<string, any>
+  onTemplateSelect: (templateId: string) => void
   onDataChange: (key: string, value: any) => void
-  onSave: () => void
-  versionHistory?: VersionEntry[]
-  onVersionRestore?: (version: VersionEntry) => void
+  onSave: (editorContent: any) => void
+  versionHistory?: any[]
+  onVersionRestore?: (version: any) => void
+  isEditMode?: boolean
+  initialContent?: any
 }
 
-export function NoteEditor({ template, formData, onDataChange, versionHistory = [], onVersionRestore }: NoteEditorProps) {
+export function NoteEditor({ 
+  templates,
+  selectedTemplate,
+  formData, 
+  onTemplateSelect,
+  onDataChange, 
+  onSave,
+  versionHistory = [], 
+  onVersionRestore,
+  isEditMode = false,
+  initialContent
+}: NoteEditorProps) {
+  const { toast } = useToast()
   const [isVersionDialogOpen, setIsVersionDialogOpen] = useState(false)
   const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState(false)
   const [pdfHtml, setPdfHtml] = useState("")
@@ -54,25 +67,34 @@ export function NoteEditor({ template, formData, onDataChange, versionHistory = 
       TableCell,
       FormElementExtension,
     ],
-    content: template?.templateContent || "<p>Loading...</p>",
+    content: initialContent || selectedTemplate?.templateContent || "<p>Loading...</p>",
     editorProps: {
       attributes: {
         class: "prose prose-sm max-w-none focus:outline-none min-h-96 text-sm leading-relaxed p-6",
       },
     },
-    editable: false,
+    editable: true,
   })
 
   useEffect(() => {
-    if (editor && template?.templateContent) {
-      editor.commands.setContent(template.templateContent)
+    if (editor && !isEditMode && selectedTemplate?.templateContent) {
+      setTimeout(() => {
+        editor.commands.setContent(selectedTemplate.templateContent)
+      }, 0)
     }
-  }, [editor, template])
+  }, [editor, selectedTemplate, isEditMode])
+
+  useEffect(() => {
+    if (editor && isEditMode && initialContent) {
+      setTimeout(() => {
+        editor.commands.setContent(initialContent)
+      }, 0)
+    }
+  }, [editor, initialContent, isEditMode])
 
   useEffect(() => {
     if (!editor) return
 
-    // Update form element nodes with new values from formData
     const { state } = editor
     const { tr } = state
     let updated = false
@@ -98,11 +120,14 @@ export function NoteEditor({ template, formData, onDataChange, versionHistory = 
     }
   }, [formData, editor])
 
-
-
-  const handleVersionRestore = (version: VersionEntry) => {
-    if (onVersionRestore) {
+  const handleVersionRestore = (version: any) => {
+    if (onVersionRestore && editor) {
       onVersionRestore(version)
+      if (version.noteContent) {
+        setTimeout(() => {
+          editor.commands.setContent(version.noteContent)
+        }, 0)
+      }
       setIsVersionDialogOpen(false)
       toast({ title: "Version Restored", description: `Restored to version ${version.version}` })
     }
@@ -185,9 +210,6 @@ export function NoteEditor({ template, formData, onDataChange, versionHistory = 
             h1 { font-size: 2em; font-weight: bold; margin: 0.67em 0; }
             h2 { font-size: 1.5em; font-weight: bold; margin: 0.75em 0; }
             h3 { font-size: 1.17em; font-weight: bold; margin: 0.83em 0; }
-            h4 { font-size: 1em; font-weight: bold; margin: 1.12em 0; }
-            h5 { font-size: 0.83em; font-weight: bold; margin: 1.5em 0; }
-            h6 { font-size: 0.75em; font-weight: bold; margin: 1.67em 0; }
             p { margin: 1em 0; }
             ul, ol { margin: 1em 0; padding-left: 40px; }
             li { margin: 0.5em 0; }
@@ -196,9 +218,6 @@ export function NoteEditor({ template, formData, onDataChange, versionHistory = 
             th { font-weight: bold; background-color: #f0f0f0; }
             img { max-width: 100%; height: auto; }
             strong { font-weight: bold; }
-            em { font-style: italic; }
-            u { text-decoration: underline; }
-            a { color: #0000EE; text-decoration: underline; }
           </style>
         </head>
         <body>${bodyContent}</body>
@@ -207,7 +226,8 @@ export function NoteEditor({ template, formData, onDataChange, versionHistory = 
   }
 
   const handlePdfPreview = () => {
-    const html = generatePdfHtml(template.templateContent, formData, template.templateName)
+    const content = editor?.getJSON() || selectedTemplate.templateContent
+    const html = generatePdfHtml(content, formData, selectedTemplate.templateName)
     setPdfHtml(html)
     setIsPdfPreviewOpen(true)
   }
@@ -229,132 +249,126 @@ export function NoteEditor({ template, formData, onDataChange, versionHistory = 
     setIsPdfPreviewOpen(false)
   }
 
-  const groups = useMemo(() => template?.groups || [], [template])
-  const elements = useMemo(() => extractFormElements(template?.templateContent), [template])
+  const groups = useMemo(() => selectedTemplate?.groups || [], [selectedTemplate])
+  const elements = useMemo(() => extractFormElements(selectedTemplate?.templateContent), [selectedTemplate])
 
   return (
     <div className="flex h-full">
-      <div className="w-64 border-r bg-card"></div>
+      <div className="w-[250px] border-r bg-white" />
 
       <div className="flex-1 overflow-y-auto p-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-semibold">{template.templateName}</h2>
-            <div className="flex gap-2">
-              {versionHistory.length > 0 && (
-                <Button size="sm" variant="outline" onClick={() => setIsVersionDialogOpen(true)} className="gap-1">
-                  <History className="w-4 h-4" />
-                  Versions ({versionHistory.length})
+        {selectedTemplate ? (
+          <div className="max-w-[900px] mx-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">{selectedTemplate.templateName}</h2>
+              <div className="flex gap-2">
+                {versionHistory.length > 0 && (
+                  <Button size="sm" variant="outline" onClick={() => setIsVersionDialogOpen(true)} className="gap-1">
+                    <Clock className="w-4 h-4" />
+                    Versions ({versionHistory.length})
+                  </Button>
+                )}
+                <Button size="sm" variant="outline" onClick={handlePdfPreview} className="gap-1">
+                  <Download className="w-4 h-4" />
+                  PDF
                 </Button>
-              )}
-              <Button size="sm" variant="outline" onClick={handlePdfPreview} className="gap-1">
-                <Download className="w-4 h-4" />
-                PDF
-              </Button>
-            </div>
-          </div>
-          <div className="bg-white border rounded-lg shadow-sm">
-            <EditorContent editor={editor} />
-          </div>
-        </div>
-      </div>
-
-      <div className="w-96 border-l bg-card overflow-y-auto p-3">
-        <h3 className="text-xs font-semibold mb-2">Fields</h3>
-        <div className="space-y-3">
-          {groups.map((group) => {
-            const groupElements = elements.filter((el) => el.group_id === group.id)
-            if (groupElements.length === 0) return null
-
-            return (
-              <div key={group.id} className="space-y-1">
-                <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">
-                  {group.group_name}
-                </h4>
-                <div className="space-y-0.5">
-                  {groupElements.map((element) => (
-                    <FieldInput
-                      key={element.elementKey}
-                      element={element}
-                      value={formData[element.elementKey] || ""}
-                      onChange={(val) => onDataChange(element.elementKey, val)}
-                      onVoiceInput={(text) => onDataChange(element.elementKey, text)}
-                    />
-                  ))}
-                </div>
-              </div>
-            )
-          })}
-
-          {elements.filter((el) => !el.group_id).length > 0 && (
-            <div className="space-y-1">
-              <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">
-                Other Fields
-              </h4>
-              <div className="space-y-0.5">
-                {elements
-                  .filter((el) => !el.group_id)
-                  .map((element) => (
-                    <FieldInput
-                      key={element.elementKey}
-                      element={element}
-                      value={formData[element.elementKey] || ""}
-                      onChange={(val) => onDataChange(element.elementKey, val)}
-                      onVoiceInput={(text) => onDataChange(element.elementKey, text)}
-                    />
-                  ))}
+                <Button size="sm" onClick={() => onSave(editor?.getJSON())}>
+                  Save
+                </Button>
               </div>
             </div>
-          )}
-        </div>
+            <div className="bg-white border rounded-md shadow-sm">
+              <EditorContent editor={editor} />
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center h-full">
+            <p className="text-gray-500">Select a template from the right panel to start</p>
+          </div>
+        )}
       </div>
 
-      <Dialog open={isVersionDialogOpen} onOpenChange={setIsVersionDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Version History</DialogTitle>
-          </DialogHeader>
+      <div className="w-[380px] border-l border-t border-r border-b bg-white overflow-y-auto p-3">
+        <div className="mb-3">
+          <p className="text-[10px] font-semibold mb-1.5 uppercase">Select Template</p>
+          <Select value={selectedTemplate?.id || ""} onValueChange={onTemplateSelect} disabled={isEditMode}>
+            <SelectTrigger className="h-7 text-xs">
+              <SelectValue placeholder="Choose Template" />
+            </SelectTrigger>
+            <SelectContent>
+              {templates?.map((t) => (
+                <SelectItem key={t.id} value={t.id} className="text-xs">
+                  {t.templateName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="h-px bg-gray-200 my-3" />
+
+        <p className="text-xs font-semibold mb-2">Fields</p>
+        {elements.length === 0 ? (
+          <div className="p-4 text-center">
+            <p className="text-xs text-gray-500">No form fields in this template.</p>
+            <p className="text-xs text-gray-400 mt-2">Add form elements to the template first.</p>
+          </div>
+        ) : (
           <div className="space-y-3">
-            {versionHistory.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No version history</p>
-            ) : (
-              versionHistory.map((version) => (
-                <div key={version.version} className="border rounded-lg p-3 hover:bg-muted/50">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Badge variant="outline">v{version.version}</Badge>
-                        <span className="text-xs text-muted-foreground">
-                          {formatDateTime(version.timestamp)}
-                        </span>
-                      </div>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleVersionRestore(version)}
-                      className="text-xs"
-                    >
-                      Restore
-                    </Button>
+            {groups.map((group: any) => {
+              const groupElements = elements.filter((el: any) => el.group_id === group.id)
+              if (groupElements.length === 0) return null
+
+              return (
+                <div key={group.id}>
+                  <p className="text-[10px] font-semibold text-gray-600 mb-1 uppercase">
+                    {group.group_name}
+                  </p>
+                  <div className="space-y-0.5">
+                    {groupElements.map((element: any) => (
+                      <FieldInput
+                        key={element.elementKey}
+                        element={element}
+                        value={formData[element.elementKey] || ""}
+                        onChange={(val: any) => onDataChange(element.elementKey, val)}
+                      />
+                    ))}
                   </div>
                 </div>
-              ))
+              )
+            })}
+
+            {elements.filter((el: any) => !el.group_id).length > 0 && (
+              <div>
+                <p className="text-[10px] font-semibold text-gray-600 mb-1 uppercase">
+                  Other Fields
+                </p>
+                <div className="space-y-0.5">
+                  {elements
+                    .filter((el: any) => !el.group_id)
+                    .map((element: any) => (
+                      <FieldInput
+                        key={element.elementKey}
+                        element={element}
+                        value={formData[element.elementKey] || ""}
+                        onChange={(val: any) => onDataChange(element.elementKey, val)}
+                      />
+                    ))}
+                </div>
+              </div>
             )}
           </div>
-        </DialogContent>
-      </Dialog>
+        )}
+      </div>
 
       <Dialog open={isPdfPreviewOpen} onOpenChange={setIsPdfPreviewOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[90vw] w-full max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>PDF Preview</DialogTitle>
           </DialogHeader>
-          <div className="border rounded bg-white max-h-[70vh] overflow-y-auto" dangerouslySetInnerHTML={{ __html: pdfHtml }} />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsPdfPreviewOpen(false)}>
-              Cancel
-            </Button>
+          <div className="border rounded-md bg-white flex-1 overflow-y-auto p-6" dangerouslySetInnerHTML={{ __html: pdfHtml }} />
+          <DialogFooter className="flex-shrink-0">
+            <Button variant="ghost" onClick={() => setIsPdfPreviewOpen(false)}>Cancel</Button>
             <Button onClick={handlePdfDownload} className="gap-1">
               <Download className="w-4 h-4" />
               Download PDF
@@ -362,31 +376,36 @@ export function NoteEditor({ template, formData, onDataChange, versionHistory = 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={isVersionDialogOpen} onOpenChange={setIsVersionDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Version History</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 max-h-[400px] overflow-y-auto">
+            {versionHistory.map((version: any) => (
+              <div
+                key={version.version}
+                className="p-3 border rounded-md hover:bg-gray-50 cursor-pointer"
+                onClick={() => handleVersionRestore(version)}
+              >
+                <div className="flex justify-between items-center">
+                  <Badge variant="outline">Version {version.version}</Badge>
+                  <span className="text-xs text-gray-500">
+                    {new Date(version.timestamp).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
 
-const FieldInput = memo(function FieldInput({ element, value, onChange, onVoiceInput }: any) {
+const FieldInput = memo(function FieldInput({ element, value, onChange }: any) {
   const { elementType, label, required, placeholder, options } = element
-
-  if (elementType === "voice") {
-    return (
-      <div className="flex items-center gap-1">
-        <Label className="text-[10px] w-20 flex-shrink-0">
-          {label}{required && <span className="text-red-500">*</span>}
-        </Label>
-        <div className="flex-1 flex items-center gap-1">
-          <Input
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={placeholder}
-            className="h-6 text-[10px] flex-1"
-          />
-          <VoiceInput onTranscribed={onVoiceInput} />
-        </div>
-      </div>
-    )
-  }
 
   if (elementType === "input" || elementType === "datetime") {
     return (
@@ -415,7 +434,7 @@ const FieldInput = memo(function FieldInput({ element, value, onChange, onVoiceI
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className="text-[10px] min-h-16 flex-1"
+          className="min-h-[60px] text-[10px] flex-1"
         />
       </div>
     )
@@ -424,8 +443,12 @@ const FieldInput = memo(function FieldInput({ element, value, onChange, onVoiceI
   if (elementType === "checkbox") {
     return (
       <div className="flex items-center gap-1">
-        <Checkbox checked={value === true} onCheckedChange={onChange} id={element.elementKey} className="h-3 w-3" />
-        <Label htmlFor={element.elementKey} className="text-[10px] cursor-pointer">
+        <Checkbox
+          checked={value === true}
+          onCheckedChange={(checked) => onChange(checked)}
+          className="h-3 w-3"
+        />
+        <Label className="text-[10px] cursor-pointer">
           {label}{required && <span className="text-red-500">*</span>}
         </Label>
       </div>
@@ -463,6 +486,7 @@ function extractFormElements(content: any): any[] {
   const elements: any[] = []
 
   const traverse = (nodes: any[]) => {
+    if (!Array.isArray(nodes)) return
     nodes.forEach((node) => {
       if (node.type === "formElement" && node.attrs) {
         elements.push(node.attrs)

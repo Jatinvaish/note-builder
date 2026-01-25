@@ -1,5 +1,5 @@
 export interface FormElement {
-  elementType: "input" | "checkbox" | "select" | "datetime" | "signature" | "textarea" | "speech"
+  elementType: "input" | "checkbox" | "select" | "datetime" | "signature" | "textarea" | "speech" | "voice_to_text"
   label: string
   elementKey: string
   defaultValue: string
@@ -24,7 +24,8 @@ export interface DataBinding {
 export interface ClinicalContext {
   appointmentDate?: string
   admissionDate?: string
-  patientId?: string
+  patientId?: number
+  admissionId?: number
   clinicianId?: string
   [key: string]: any
 }

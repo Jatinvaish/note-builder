@@ -2,32 +2,28 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
-import { getTemplates } from "@/lib/template-storage"
-import { saveNote } from "@/lib/note-storage"
+import { AppHeader } from "@/components/app-header"
 import { NoteEditor } from "@/components/note-editor"
-import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowLeft, Save } from "lucide-react"
-import { toast } from "@/hooks/use-toast"
-import type { Template } from "@/lib/types"
+import { useToast } from "@/hooks/use-toast"
 
 export default function CreateNotePage() {
   const router = useRouter()
-  const [templates, setTemplates] = useState<Template[]>([])
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("")
-  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
+  const { toast } = useToast()
+  const [templates, setTemplates] = useState<any[]>([])
+  const [selectedTemplate, setSelectedTemplate] = useState<any>(null)
   const [formData, setFormData] = useState<Record<string, any>>({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const loaded = getTemplates()
-    setTemplates(loaded)
+    const stored = localStorage.getItem("templates")
+    if (stored) {
+      const parsed = JSON.parse(stored)
+      setTemplates(Array.isArray(parsed) ? parsed : [])
+    }
     setLoading(false)
   }, [])
 
   const handleTemplateSelect = (templateId: string) => {
-    setSelectedTemplateId(templateId)
     const template = templates.find((t) => t.id === templateId)
     setSelectedTemplate(template || null)
     setFormData({})
@@ -47,82 +43,53 @@ export default function CreateNotePage() {
       return
     }
 
+    const notes = JSON.parse(localStorage.getItem("notes") || "[]")
     const newNote = {
       id: `note-${Date.now()}`,
       templateId: selectedTemplate.id,
       templateName: selectedTemplate.templateName,
       consultationData: formData,
+      noteContent: selectedTemplate.templateContent,
       versionHistory: [
         {
           version: 1,
           timestamp: new Date().toISOString(),
           data: formData,
+          noteContent: selectedTemplate.templateContent,
         },
       ],
       isActive: true,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
-
-    saveNote(newNote)
+    notes.push(newNote)
+    localStorage.setItem("notes", JSON.stringify(notes))
     toast({ title: "Success", description: "Note saved successfully" })
     router.push("/notes")
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-muted-foreground">Loading...</p>
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-gray-500">Loading...</p>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <div className="border-b bg-card p-3">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <div className="flex items-center gap-2">
-            <Link href="/notes">
-              <Button variant="outline" size="sm" className="gap-1">
-                <ArrowLeft className="w-4 h-4" />
-                Back
-              </Button>
-            </Link>
-            <Select value={selectedTemplateId} onValueChange={handleTemplateSelect}>
-              <SelectTrigger className="w-64 h-8">
-                <SelectValue placeholder="Select Template" />
-              </SelectTrigger>
-              <SelectContent>
-                {templates.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>
-                    {t.templateName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button onClick={handleSave} size="sm" className="gap-1" disabled={!selectedTemplate}>
-            <Save className="w-4 h-4" />
-            Save
-          </Button>
-        </div>
-      </div>
-
+    <div className="min-h-screen flex flex-col">
+      <AppHeader />
       <div className="flex-1">
-        {selectedTemplate ? (
-          <NoteEditor
-            template={selectedTemplate}
-            formData={formData}
-            onDataChange={handleDataChange}
-            onSave={handleSave}
-            versionHistory={[]}
-            onVersionRestore={handleVersionRestore}
-          />
-        ) : (
-          <div className="flex items-center justify-center h-full">
-            <p className="text-muted-foreground">Select a template to start</p>
-          </div>
-        )}
+        <NoteEditor
+          templates={templates}
+          selectedTemplate={selectedTemplate}
+          formData={formData}
+          onTemplateSelect={handleTemplateSelect}
+          onDataChange={handleDataChange}
+          onSave={handleSave}
+          versionHistory={[]}
+          onVersionRestore={handleVersionRestore}
+        />
       </div>
     </div>
   )
