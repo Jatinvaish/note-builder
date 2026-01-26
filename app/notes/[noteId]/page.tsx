@@ -5,6 +5,8 @@ import { useRouter, useParams } from "next/navigation"
 import { NoteEditor } from "@/components/note-editor"
 import { AppHeader } from "@/components/app-header"
 import { useToast } from "@/hooks/use-toast"
+import { consultationNoteApi } from "@/services/consultation-note-api"
+import { templateApi } from "@/services/template-api"
 
 export default function EditNotePage() {
   const router = useRouter()
@@ -19,32 +21,32 @@ export default function EditNotePage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const storedTemplates = localStorage.getItem("templates")
-    if (storedTemplates) {
-      const parsed = JSON.parse(storedTemplates)
-      setTemplates(Array.isArray(parsed) ? parsed : [])
-    }
+    const loadData = async () => {
+      try {
+        const templatesData = await templateApi.listActive()
+        setTemplates(Array.isArray(templatesData) ? templatesData : [])
 
-    if (noteId) {
-      const notes = JSON.parse(localStorage.getItem("notes") || "[]")
-      const foundNote = notes.find((n: any) => n.id === noteId)
-      if (foundNote) {
-        setNote(foundNote)
-        setFormData(foundNote.consultationData || {})
-        setNoteContent(foundNote.noteContent || null)
-        
-        const storedTemplates = localStorage.getItem("templates")
-        if (storedTemplates) {
-          const parsed = JSON.parse(storedTemplates)
-          const template = parsed.find((t: any) => t.id === foundNote.templateId)
-          if (template) {
-            setSelectedTemplate(template)
+        if (noteId) {
+          const foundNote = await consultationNoteApi.view(Number(noteId))
+          if (foundNote) {
+            setNote(foundNote)
+            setFormData(foundNote.consultationData || {})
+            setNoteContent(foundNote.noteContent || null)
+
+            const template = templatesData.find((t: any) => t.id === foundNote.templateId)
+            if (template) {
+              setSelectedTemplate(template)
+            }
           }
         }
+      } catch (error) {
+        toast({ title: "Error", description: "Failed to load note data", variant: "destructive" })
+      } finally {
+        setLoading(false)
       }
     }
-    setLoading(false)
-  }, [noteId])
+    loadData()
+  }, [noteId, toast])
 
   const handleTemplateSelect = (templateId: string) => {
     const template = templates.find((t) => t.id === templateId)
@@ -60,35 +62,29 @@ export default function EditNotePage() {
     setNoteContent(version.noteContent)
   }
 
-  const handleSave = (editorContent: any) => {
+  const handleSave = async (editorContent: any) => {
     if (!note || !selectedTemplate) {
       toast({ title: "Error", description: "Note not found", variant: "destructive" })
       return
     }
 
-    const notes = JSON.parse(localStorage.getItem("notes") || "[]")
-    const noteIndex = notes.findIndex((n: any) => n.id === noteId)
-    
-    if (noteIndex !== -1) {
-      const currentVersion = notes[noteIndex].versionHistory?.length || 0
-      notes[noteIndex] = {
-        ...notes[noteIndex],
-        consultationData: formData,
+    try {
+      const payload = {
+        id: Number(noteId),
+        templateId: selectedTemplate.id,
+        consultationType: note.consultationType || "ipd",
+        admissionId: note.admissionId,
+        appointmentId: note.appointmentId,
         noteContent: editorContent,
-        updatedAt: new Date().toISOString(),
-        versionHistory: [
-          ...(notes[noteIndex].versionHistory || []),
-          {
-            version: currentVersion + 1,
-            timestamp: new Date().toISOString(),
-            data: formData,
-            noteContent: editorContent,
-          },
-        ],
+        formData: formData,
+        status: "active",
       }
-      localStorage.setItem("notes", JSON.stringify(notes))
+
+      await consultationNoteApi.save(payload)
       toast({ title: "Success", description: "Note updated successfully" })
       router.push("/notes")
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to update note", variant: "destructive" })
     }
   }
 

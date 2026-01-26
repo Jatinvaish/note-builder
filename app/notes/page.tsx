@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { getNotes, inactivateNote } from "@/lib/note-storage"
+import { consultationNoteApi } from "@/services/consultation-note-api"
 import { Button } from "@/components/ui/button"
 import { Plus, Edit, Trash2, FileText } from "lucide-react"
 import { formatDateTime } from "@/lib/date-utils"
@@ -12,15 +12,38 @@ export default function NotesPage() {
   const [notes, setNotes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    setNotes(getNotes().filter((n: any) => n.isActive !== false))
-    setLoading(false)
-  }, [])
+  // Use a default admissionId for demo or get from context
+  const admissionId = 76
 
-  const handleInactivate = (noteId: string) => {
+  useEffect(() => {
+    const fetchNotes = async () => {
+      try {
+        const data = await consultationNoteApi.listByAdmission(admissionId)
+        setNotes(Array.isArray(data) ? data : [])
+      } catch (error) {
+        console.error("Failed to fetch notes:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchNotes()
+  }, [admissionId])
+
+  const handleInactivate = async (noteId: number) => {
     if (confirm("Are you sure you want to delete this note?")) {
-      inactivateNote(noteId)
-      setNotes(getNotes().filter((n: any) => n.isActive !== false))
+      try {
+        // Assuming save with status 'inactive' or a dedicated delete API
+        const noteToUpdate = notes.find(n => n.id === noteId)
+        if (noteToUpdate) {
+          await consultationNoteApi.save({
+            ...noteToUpdate,
+            status: 'inactive'
+          })
+          setNotes(prev => prev.filter(n => n.id !== noteId))
+        }
+      } catch (error) {
+        console.error("Failed to delete note:", error)
+      }
     }
   }
 

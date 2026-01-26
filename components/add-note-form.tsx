@@ -8,11 +8,16 @@ import { AutoFillService } from "@/lib/auto-fill-service"
 import { toast } from "@/hooks/use-toast"
 import { Label } from "@/components/ui/label"
 import { templateApi } from "@/services/template-api"
+import { consultationNoteApi } from "@/services/consultation-note-api"
 
 interface Template {
   id: number
   templateName: string
-  templateContent: any
+  templateContent?: any
+  templateDescription?: string
+  templateType?: string
+  versionHistory?: any[]
+  status?: string
 }
 
 interface AddNoteFormProps {
@@ -81,7 +86,7 @@ export function AddNoteForm({ patientId = 1, admissionId = 1, onSave, onCancel }
   const handleTemplateChange = async (templateId: string) => {
     const template = templates.find(t => t.id.toString() === templateId)
     if (!template) return
-    
+
     try {
       // Fetch full template with content
       const fullTemplate = await templateApi.view(template.id)
@@ -104,19 +109,18 @@ export function AddNoteForm({ patientId = 1, admissionId = 1, onSave, onCancel }
 
     setIsSaving(true)
     try {
-      const notes = JSON.parse(localStorage.getItem("notes") || "[]")
       const newNote = {
-        id: Date.now().toString(),
         templateId: selectedTemplate.id,
-        templateName: selectedTemplate.templateName,
-        patientId,
-        admissionId,
-        data: formData,
-        createdAt: new Date().toISOString()
+        consultationType: "ipd",
+        admissionId: admissionId || null,
+        appointmentId: null,
+        noteContent: selectedTemplate.templateContent, // Template renderer handles its own content usually, but for save we need this
+        formData: formData,
+        status: "active",
       }
-      notes.push(newNote)
-      localStorage.setItem("notes", JSON.stringify(notes))
-      
+
+      await consultationNoteApi.save(newNote)
+
       toast({ title: "Success", description: "Note saved successfully" })
       setSelectedTemplate(null)
       setFormData({})
@@ -150,9 +154,9 @@ export function AddNoteForm({ patientId = 1, admissionId = 1, onSave, onCancel }
 
       {selectedTemplate && (
         <div className="border rounded p-3 bg-white max-h-[500px] overflow-y-auto">
-          <TemplateRenderer 
-            template={selectedTemplate} 
-            onDataChange={handleDataChange} 
+          <TemplateRenderer
+            template={selectedTemplate}
+            onDataChange={handleDataChange}
             data={formData}
             isEditable={true}
             clinicalContext={{ patientId, admissionId }}

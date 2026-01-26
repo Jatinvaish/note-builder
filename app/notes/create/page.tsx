@@ -6,6 +6,7 @@ import { AppHeader } from "@/components/app-header"
 import { NoteEditor } from "@/components/note-editor"
 import { useToast } from "@/hooks/use-toast"
 import { templateApi } from "@/services/template-api"
+import { consultationNoteApi } from "@/services/consultation-note-api"
 import { PREDEFINED_DATA_FIELDS } from "@/lib/predefined-data-fields"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -71,12 +72,11 @@ export default function CreateNotePage() {
   const [physicalExamConfig, setPhysicalExamConfig] = useState<PhysicalExamConfig | null>(null)
   const [physicalExamData, setPhysicalExamData] = useState<PhysicalExamData>({})
   const [currentExamField, setCurrentExamField] = useState<string | null>(null)
-  
+
   // Mock patient/admission IDs and user data - replace with actual values from context/props
-  const patientId = 315
-  const admissionId = 80
+  const admissionId = 76
   const mockUser = { name: "Dr. John Doe", username: "johndoe" }
-  const mockActivePatient = { patientId: 315, admissionId: 80 }
+  const mockActivePatient = { patientId: 319, admissionId: 76 }
 
   useEffect(() => {
     const loadTemplates = async () => {
@@ -95,14 +95,14 @@ export default function CreateNotePage() {
   const handleTemplateSelect = async (templateId: string) => {
     const template = templates.find((t) => t.id.toString() === templateId)
     if (!template) return
-    
+
     try {
       const fullTemplate = await templateApi.view(template.id)
       setSelectedTemplate(fullTemplate)
-      
+
       // Extract form elements and auto-fill
       const elements = extractFormElements(fullTemplate.templateContent)
-      
+
       // Initialize form data with smart defaults
       const initialData: Record<string, any> = {}
       elements.forEach((el) => {
@@ -124,7 +124,7 @@ export default function CreateNotePage() {
           initialData[el.elementKey] = el.defaultValue || ""
         }
       })
-      
+
       // Auto-fill data from enhanced fields (static data for ShadCN)
       try {
         const autoFilledData = await autoFillFromEnhancedFields(elements)
@@ -167,9 +167,9 @@ export default function CreateNotePage() {
       if (!element.dataField) continue
 
       const dataFieldConfig = PREDEFINED_DATA_FIELDS.find(f => f.id === element.dataField)
-      if (!dataFieldConfig) continue
+      if (!dataFieldConfig || !('actions' in dataFieldConfig)) continue
 
-      const { actions, call_time } = dataFieldConfig
+      const { actions, call_time } = dataFieldConfig as any
 
       // Handle API_CALL on render (using mock data)
       if (actions.type === 'API_CALL' && call_time.on_render_page) {
@@ -275,76 +275,37 @@ export default function CreateNotePage() {
   }
 
   const handleVersionRestore = (version: any) => {
-    setFormData(version.data)
+    setFormData(version.consultationData || version.data)
   }
 
-  const handleSave = async () => {
+  const handleSave = async (editorContent: any) => {
     if (!selectedTemplate) {
       toast({ title: "Error", description: "Please select a template", variant: "destructive" })
       return
     }
 
     try {
+      const isUpdate = !!noteId
       const payload = {
         id: noteId,
         templateId: selectedTemplate.id,
         consultationType: "ipd",
         admissionId: admissionId,
         appointmentId: null,
-        noteContent: selectedTemplate.templateContent,
+        noteContent: editorContent, // Use actual editor content, not template
         formData: formData,
         status: "active",
       }
-      
-      // Mock API call for ShadCN - replace with actual fetcher when backend is connected
-      // const response = await fetcher({ path: "/api/custom-notes/save" }, { json: payload })
-      // if (response?.note?.id) {
-      //   setNoteId(response.note.id)
-      // }
-      
-      // For now, save to localStorage with versioning
-      const notes = JSON.parse(localStorage.getItem("notes") || "[]")
-      let note = notes.find((n: any) => n.id === noteId)
-      
-      if (note) {
-        // Update existing note with versioning
-        const versionHistory = note.versionHistory || []
-        versionHistory.push({
-          version: versionHistory.length + 1,
-          timestamp: new Date().toISOString(),
-          data: note.consultationData,
-          noteContent: note.noteContent,
-          savedBy: mockUser.name,
-        })
-        
-        note.consultationData = formData
-        note.noteContent = selectedTemplate.templateContent
-        note.versionHistory = versionHistory
-        note.updatedAt = new Date().toISOString()
-      } else {
-        // Create new note
-        const newNoteId = Date.now()
-        note = {
-          id: newNoteId,
-          templateId: selectedTemplate.id,
-          templateName: selectedTemplate.templateName,
-          consultationType: "ipd",
-          admissionId: admissionId,
-          appointmentId: null,
-          consultationData: formData,
-          noteContent: selectedTemplate.templateContent,
-          versionHistory: [],
-          isActive: true,
-          status: "active",
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }
-        notes.push(note)
-        setNoteId(newNoteId)
+
+      const response = await consultationNoteApi.save(payload)
+      if (response?.id) {
+        setNoteId(response.id)
       }
-      
-      localStorage.setItem("notes", JSON.stringify(notes))
-      toast({ title: "Success", description: "Note saved successfully" })
+
+      toast({
+        title: "Success",
+        description: isUpdate ? "Note updated successfully" : "Note saved successfully"
+      })
     } catch (error) {
       console.error("Save error:", error)
       toast({ title: "Error", description: "Failed to save note", variant: "destructive" })
@@ -406,11 +367,10 @@ export default function CreateNotePage() {
                                 key={finding}
                                 size="sm"
                                 variant="outline"
-                                className={`text-xs px-2 min-w-[50px] ${bgColor} ${
-                                  status === "normal" ? "border-green-500 text-green-700" :
+                                className={`text-xs px-2 min-w-[50px] ${bgColor} ${status === "normal" ? "border-green-500 text-green-700" :
                                   status === "abnormal" ? "border-red-500 text-red-700" :
-                                  "border-gray-300"
-                                }`}
+                                    "border-gray-300"
+                                  }`}
                                 onClick={() => {
                                   let newStatus: "normal" | "abnormal" | undefined
                                   if (!status) newStatus = "normal"

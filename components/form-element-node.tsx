@@ -21,10 +21,10 @@ const ELEMENT_COLORS: Record<string, { bg: string; border: string; text: string 
 export function FormElementNode({ node }: FormElementNodeProps) {
   const { elementType, label, elementKey, required, defaultValue } = node.attrs
   const colors = ELEMENT_COLORS[elementType] || ELEMENT_COLORS.input
-  
+
   let displayValue = defaultValue || "[Empty]"
   let isSignature = false
-  
+
   // Format datetime for display
   if (elementType === "datetime" && defaultValue) {
     try {
@@ -39,16 +39,16 @@ export function FormElementNode({ node }: FormElementNodeProps) {
         hours = hours % 12 || 12
         displayValue = `${day}-${month}-${year} ${hours}:${minutes} ${ampm}`
       }
-    } catch {}
+    } catch { }
   }
-  
+
   if (elementType === "signature" && defaultValue) {
     try {
       const paths = JSON.parse(defaultValue)
       if (Array.isArray(paths) && paths.length > 0) {
         isSignature = true
       }
-    } catch {}
+    } catch { }
   }
 
   return (
@@ -59,7 +59,7 @@ export function FormElementNode({ node }: FormElementNodeProps) {
         className={`inline-flex items-center gap-2 px-2.5 py-1 rounded border text-xs font-medium ${colors.bg} ${colors.border} ${colors.text}`}
       >
         <Settings className="w-3 h-3" />
-        <span className="font-semibold">{label}:</span>
+        {/* Removed label display - showing value only */}
         {isSignature ? (
           <svg width="80" height="30" className="inline-block">
             {(() => {

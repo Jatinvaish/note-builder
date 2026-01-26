@@ -79,14 +79,14 @@ interface NoteEditorProps {
   onPhysicalExamClick?: (fieldId: string) => void
 }
 
-export function NoteEditor({ 
+export function NoteEditor({
   templates,
   selectedTemplate,
-  formData, 
+  formData,
   onTemplateSelect,
-  onDataChange, 
+  onDataChange,
   onSave,
-  versionHistory = [], 
+  versionHistory = [],
   onVersionRestore,
   isEditMode = false,
   initialContent,
@@ -125,63 +125,54 @@ export function NoteEditor({
     editable: true,
   })
 
-  useEffect(() => {
-    if (editor && !isEditMode && selectedTemplate?.templateContent) {
-      setTimeout(() => {
-        editor.commands.setContent(selectedTemplate.templateContent)
-      }, 0)
-    }
-  }, [editor, selectedTemplate, isEditMode])
-
-  useEffect(() => {
-    if (editor && isEditMode && initialContent) {
-      setTimeout(() => {
-        editor.commands.setContent(initialContent)
-      }, 0)
-    }
-  }, [editor, initialContent, isEditMode])
-
+  // Consolidate content loading and form element synchronization to prevent race conditions
   useEffect(() => {
     if (!editor) return
 
-    const { state } = editor
-    const { tr } = state
-    let updated = false
+    // 1. Handle content loading (Initial content or Template content)
+    let contentToSet = null
+    if (isEditMode && initialContent) {
+      contentToSet = initialContent
+    } else if (!isEditMode && selectedTemplate?.templateContent) {
+      contentToSet = selectedTemplate.templateContent
+    }
 
-    state.doc.descendants((node, pos) => {
-      if (node.type.name === "formElement") {
-        const elementKey = node.attrs.elementKey
-        const newValue = formData[elementKey] || ""
-        const currentValue = node.attrs.defaultValue || ""
+    if (contentToSet) {
+      // Set content synchronously to avoid race conditions with attribute syncing
+      editor.commands.setContent(contentToSet)
+    }
 
-        if (newValue !== currentValue) {
-          tr.setNodeMarkup(pos, undefined, {
-            ...node.attrs,
-            defaultValue: newValue,
-          })
-          updated = true
-        }
-      }
-    })
+    // 2. Handle attribute synchronization (Auto-fill)
+    if (formData && Object.keys(formData).length > 0) {
+      const { state } = editor
+      const { tr } = state
+      let updated = false
 
-    if (updated) {
-      const newTr = editor.state.tr
       state.doc.descendants((node, pos) => {
         if (node.type.name === "formElement") {
           const elementKey = node.attrs.elementKey
-          const newValue = formData[elementKey] || ""
-          newTr.setNodeMarkup(pos, undefined, {
-            ...node.attrs,
-            defaultValue: newValue,
-          })
+          const newValue = formData[elementKey] ?? ""
+          const currentValue = node.attrs.defaultValue ?? ""
+
+          if (newValue !== currentValue) {
+            tr.setNodeMarkup(pos, undefined, {
+              ...node.attrs,
+              defaultValue: newValue,
+            })
+            updated = true
+          }
         }
       })
-      editor.view.dispatch(newTr)
-    }
-  }, [formData, editor])
 
-  const handleVersionRestore = (version: any) => {
+      if (updated) {
+        editor.view.dispatch(tr)
+      }
+    }
+  }, [editor, selectedTemplate, initialContent, isEditMode, formData])
+
+  const handleVersionSelect = (version: any) => {
     if (onVersionRestore && editor) {
+      // Load version data without saving (user must click Save to persist)
       onVersionRestore(version)
       if (version.noteContent) {
         setTimeout(() => {
@@ -189,7 +180,11 @@ export function NoteEditor({
         }, 0)
       }
       setIsVersionDialogOpen(false)
-      toast({ title: "Version Restored", description: `Restored to version ${version.version}` })
+      toast({
+        title: "Version Loaded",
+        description: `Version ${version.version} loaded. Click ${isEditMode ? 'Update' : 'Save'} to persist changes.`,
+        variant: "default"
+      })
     }
   }
 
@@ -227,16 +222,16 @@ export function NoteEditor({
         case "formElement":
           const elementType = node.attrs?.elementType
           const fieldValue = data[node.attrs?.elementKey]
-          
+
           if (elementType === "checkbox") {
             const checked = fieldValue === true ? "<strong>☑</strong>" : "☐"
             return `<span>${checked}</span>`
           }
-          
+
           if (elementType === "select" || elementType === "dropdown") {
             return `<span><strong>${fieldValue || ""}</strong></span>`
           }
-          
+
           if (elementType === "signature") {
             if (fieldValue && typeof fieldValue === 'string') {
               try {
@@ -245,15 +240,15 @@ export function NoteEditor({
                   const pathElements = paths.map(p => `<path d="${p}" stroke="#000" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />`).join('')
                   return `<svg width="150" height="60" style="display: inline-block; vertical-align: middle; margin: 0 4px;">${pathElements}</svg>`
                 }
-              } catch {}
+              } catch { }
             }
             return ``
           }
-          
+
           if (elementType === "input" || elementType === "textarea" || elementType === "datetime" || elementType === "voice_to_text" || elementType === "numeric") {
             return `<span><strong>${fieldValue || ""}</strong></span>`
           }
-          
+
           return `<span>${fieldValue || ""}</span>`
 
         case "image":
@@ -318,13 +313,13 @@ export function NoteEditor({
       toast({ title: "Error", description: "No content to preview", variant: "destructive" })
       return
     }
-    
+
     const content = editor.getJSON()
     if (!content || !content.content) {
       toast({ title: "Error", description: "Invalid content", variant: "destructive" })
       return
     }
-    
+
     const html = generatePdfHtml(content, formData, selectedTemplate.templateName)
     setPdfHtml(html)
     setIsPdfPreviewOpen(true)
@@ -339,7 +334,7 @@ export function NoteEditor({
 
     printWindow.document.write(pdfHtml)
     printWindow.document.close()
-    
+
     setTimeout(() => {
       printWindow.print()
     }, 250)
@@ -371,7 +366,7 @@ export function NoteEditor({
                   PDF
                 </Button>
                 <Button size="sm" onClick={() => onSave(editor?.getJSON())}>
-                  Save
+                  {isEditMode ? "Update" : "Save"}
                 </Button>
               </div>
             </div>
@@ -487,7 +482,7 @@ export function NoteEditor({
               <div
                 key={version.version}
                 className="p-3 border rounded-md hover:bg-gray-50 cursor-pointer"
-                onClick={() => handleVersionRestore(version)}
+                onClick={() => handleVersionSelect(version)}
               >
                 <div className="flex justify-between items-center">
                   <Badge variant="outline">Version {version.version}</Badge>
@@ -575,7 +570,7 @@ const FieldInput = memo(function FieldInput({ element, value, onChange, onPhysic
           const minutes = String(date.getMinutes()).padStart(2, '0')
           inputValue = `${year}-${month}-${day}T${hours}:${minutes}`
         }
-      } catch {}
+      } catch { }
     }
 
     // Physical exam fields show as button
@@ -694,7 +689,7 @@ const FieldInput = memo(function FieldInput({ element, value, onChange, onPhysic
             setAllPaths(paths)
             setHistoryStep(paths.length - 1)
           }
-        } catch {}
+        } catch { }
       }
     }, [value])
 
@@ -854,7 +849,7 @@ const FieldInput = memo(function FieldInput({ element, value, onChange, onPhysic
       </div>
     )
   }
- 
+
   return null
 })
 
