@@ -8,25 +8,18 @@ export const PREDEFINED_DATA_FIELDS = [
   { id: "patient_phone", label: "Contact Number", category: "Patient Info" },
   { id: "patient_email", label: "Email", category: "Patient Info" },
 
-  // Physical Examination
-  { id: "vital_temperature", label: "Temperature", category: "Physical Examination" },
-  { id: "vital_blood_pressure", label: "Blood Pressure", category: "Physical Examination" },
-  { id: "vital_heart_rate", label: "Heart Rate", category: "Physical Examination" },
-  { id: "vital_respiratory_rate", label: "Respiratory Rate", category: "Physical Examination" },
-  { id: "vital_oxygen_saturation", label: "Oxygen Saturation", category: "Physical Examination" },
-  { id: "vital_weight", label: "Weight", category: "Physical Examination" },
-  { id: "vital_height", label: "Height", category: "Physical Examination" },
-  { id: "vital_bmi", label: "BMI", category: "Physical Examination" },
+  // Vitals
+  { id: "vital_temperature", label: "Temperature", category: "Vitals" },
+  { id: "vital_blood_pressure", label: "Blood Pressure", category: "Vitals" },
+  { id: "vital_heart_rate", label: "Heart Rate", category: "Vitals" },
+  { id: "vital_respiratory_rate", label: "Respiratory Rate", category: "Vitals" },
+  { id: "vital_oxygen_saturation", label: "SP02(Oxygen Saturation)", category: "Vitals" },
+  { id: "vital_weight", label: "Weight", category: "Vitals" },
+  { id: "vital_height", label: "Height", category: "Vitals" },
+  { id: "vital_bmi", label: "BMI", category: "Vitals" },
 
-  // General Examination
-  { id: "exam_general_appearance", label: "General Appearance", category: "General Examination" },
-  { id: "exam_skin", label: "Skin", category: "General Examination" },
-  { id: "exam_head_neck", label: "Head & Neck", category: "General Examination" },
-  { id: "exam_chest", label: "Chest", category: "General Examination" },
-  { id: "exam_abdomen", label: "Abdomen", category: "General Examination" },
-  { id: "exam_limbs", label: "Limbs", category: "General Examination" },
-  { id: "exam_neurological", label: "Neurological", category: "General Examination" },
-
+  //Physcial Examination
+  
   // Cardiovascular
   { id: "cv_heart_sounds", label: "Heart Sounds", category: "Cardiovascular" },
   { id: "cv_murmurs", label: "Murmurs", category: "Cardiovascular" },
