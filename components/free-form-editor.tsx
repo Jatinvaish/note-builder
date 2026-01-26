@@ -7,11 +7,52 @@ import Underline from "@tiptap/extension-underline"
 import Link from "@tiptap/extension-link"
 import Image from "@tiptap/extension-image"
 import TextAlign from "@tiptap/extension-text-align"
+import { TextStyle } from "@tiptap/extension-text-style"
+import { Color } from "@tiptap/extension-color"
+import { Highlight } from "@tiptap/extension-highlight"
+import { FontFamily } from "@tiptap/extension-font-family"
 import {Table} from "@tiptap/extension-table"
 import TableRow from "@tiptap/extension-table-row"
 import TableCell from "@tiptap/extension-table-cell"
 import TableHeader from "@tiptap/extension-table-header"
 import { FormElementExtension } from "@/lib/tiptap-extensions"
+import { Extension } from "@tiptap/core"
+
+const FontSize = Extension.create({
+  name: 'fontSize',
+  addOptions() {
+    return {
+      types: ['textStyle'],
+    }
+  },
+  addGlobalAttributes() {
+    return [
+      {
+        types: this.options.types,
+        attributes: {
+          fontSize: {
+            default: null,
+            parseHTML: element => element.style.fontSize.replace(/['"]+/g, ''),
+            renderHTML: attributes => {
+              if (!attributes.fontSize) return {}
+              return { style: `font-size: ${attributes.fontSize}` }
+            },
+          },
+        },
+      },
+    ]
+  },
+  addCommands() {
+    return {
+      setFontSize: (fontSize: string) => ({ chain }) => {
+        return chain().setMark('textStyle', { fontSize }).run()
+      },
+      unsetFontSize: () => ({ chain }) => {
+        return chain().setMark('textStyle', { fontSize: null }).removeEmptyTextStyle().run()
+      },
+    }
+  },
+})
 import { setAvailableGroups } from "@/lib/editor-context"
 import type { Template, Group } from "@/lib/types"
 import { Button } from "@/components/ui/button"
@@ -59,6 +100,9 @@ import {
   Columns,
   Rows,
   Trash2,
+  Palette,
+  Highlighter,
+  ALargeSmall,
 } from "lucide-react"
 
 interface FreeFormEditorProps {
@@ -92,13 +136,12 @@ export function FreeFormEditor({
   onTemplateContentChange,
   onEditorReady,
 }: FreeFormEditorProps) {
-  const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false)
-  const [selectedGroupForNewElement, setSelectedGroupForNewElement] = useState<string | null>(null)
-  const [pendingElementType, setPendingElementType] = useState<string | null>(null)
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false)
   const [linkUrl, setLinkUrl] = useState("")
   const [isImageDialogOpen, setIsImageDialogOpen] = useState(false)
   const [imageUrl, setImageUrl] = useState("")
+  const [textColor, setTextColor] = useState("#000000")
+  const [bgColor, setBgColor] = useState("#ffff00")
   const editorRef = useRef<HTMLDivElement>(null)
 
   // Set available groups for form element nodes
@@ -111,6 +154,11 @@ export function FreeFormEditor({
     extensions: [
       StarterKit,
       Underline,
+      TextStyle,
+      Color,
+      Highlight.configure({ multicolor: true }),
+      FontFamily,
+      FontSize,
       Link.configure({
         openOnClick: false,
         autolink: true,
@@ -121,12 +169,68 @@ export function FreeFormEditor({
         },
       }),
       TextAlign.configure({ types: ["heading", "paragraph"] }),
-      Table.configure({
+      Table.configure({ 
         resizable: true,
+        allowTableNodeSelection: true,
+        cellMinWidth: 50,
       }),
-      TableRow,
-      TableHeader,
-      TableCell,
+      TableRow.extend({
+        addAttributes() {
+          return {
+            ...this.parent?.(),
+            style: {
+              default: null,
+              parseHTML: element => element.getAttribute('style'),
+              renderHTML: attributes => {
+                if (!attributes.style) return {}
+                return { style: attributes.style }
+              },
+            },
+          }
+        },
+      }),
+      TableHeader.extend({
+        addAttributes() {
+          return {
+            ...this.parent?.(),
+            style: {
+              default: null,
+              parseHTML: element => element.getAttribute('style'),
+              renderHTML: attributes => {
+                if (!attributes.style) return {}
+                return { style: attributes.style }
+              },
+            },
+            colspan: {
+              default: 1,
+            },
+            rowspan: {
+              default: 1,
+            },
+          }
+        },
+      }),
+      TableCell.extend({
+        addAttributes() {
+          return {
+            ...this.parent?.(),
+            style: {
+              default: null,
+              parseHTML: element => element.getAttribute('style'),
+              renderHTML: attributes => {
+                if (!attributes.style) return {}
+                return { style: attributes.style }
+              },
+            },
+            colspan: {
+              default: 1,
+            },
+            rowspan: {
+              default: 1,
+            },
+          }
+        },
+      }),
       FormElementExtension,
     ],
     content: template?.templateContent || "<p>Start writing your template...</p>",
@@ -171,15 +275,6 @@ export function FreeFormEditor({
   }, [editor, onEditorReady])
 
   const insertElement = (elementType: string) => {
-    setPendingElementType(elementType)
-    if (groups.length > 0) {
-      setIsGroupDialogOpen(true)
-    } else {
-      insertElementWithGroup(elementType, null)
-    }
-  }
-
-  const insertElementWithGroup = (elementType: string, groupId: string | null) => {
     if (!editor) return
 
     const elementKey = `${elementType}_${Date.now()}`
@@ -194,16 +289,12 @@ export function FreeFormEditor({
           elementKey,
           defaultValue: "",
           required: false,
-          group_id: groupId,
+          group_id: null,
           options: elementType === "select" ? { values: [] } : null,
         },
       })
       .insertContent(" ")
       .run()
-
-    setIsGroupDialogOpen(false)
-    setPendingElementType(null)
-    setSelectedGroupForNewElement(null)
   }
 
   const insertLink = () => {
@@ -308,6 +399,59 @@ export function FreeFormEditor({
             >
               U
             </Button>
+          </div>
+
+          {/* Font Size */}
+          <div className="border-l pl-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 text-xs gap-1">
+                  <ALargeSmall className="w-4 h-4" />
+                  Size
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                {['12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px', '36px'].map(size => (
+                  <DropdownMenuItem
+                    key={size}
+                    onClick={() => editor?.chain().focus().setFontSize(size).run()}
+                    className="text-xs"
+                  >
+                    {size}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          {/* Colors */}
+          <div className="flex gap-1 border-l pl-2">
+            <div className="flex items-center gap-1">
+              <input
+                type="color"
+                value={textColor}
+                onChange={(e) => {
+                  setTextColor(e.target.value)
+                  editor?.chain().focus().setColor(e.target.value).run()
+                }}
+                className="w-8 h-8 rounded cursor-pointer border"
+                title="Text Color"
+              />
+              <Palette className="w-3 h-3 text-muted-foreground absolute pointer-events-none" style={{ marginLeft: '-20px' }} />
+            </div>
+            <div className="flex items-center gap-1">
+              <input
+                type="color"
+                value={bgColor}
+                onChange={(e) => {
+                  setBgColor(e.target.value)
+                  editor?.chain().focus().toggleHighlight({ color: e.target.value }).run()
+                }}
+                className="w-8 h-8 rounded cursor-pointer border"
+                title="Background Color"
+              />
+              <Highlighter className="w-3 h-3 text-muted-foreground absolute pointer-events-none" style={{ marginLeft: '-20px' }} />
+            </div>
           </div>
 
           {/* Heading */}
@@ -513,49 +657,6 @@ export function FreeFormEditor({
           <EditorContent editor={editor} />
         </div>
       </div>
-
-      {/* Group Selection Dialog */}
-      <Dialog open={isGroupDialogOpen} onOpenChange={setIsGroupDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Select Group for Element</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label htmlFor="group-select" className="text-sm font-medium mb-2 block">
-                Assign to Group
-              </Label>
-              <Select value={selectedGroupForNewElement || "noGroup"} onValueChange={setSelectedGroupForNewElement}>
-                <SelectTrigger id="group-select">
-                  <SelectValue placeholder="Select a group (optional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="noGroup">No Group</SelectItem>
-                  {groups.map((group) => (
-                    <SelectItem key={group.id} value={group.id}>
-                      {group.group_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsGroupDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                if (pendingElementType) {
-                  insertElementWithGroup(pendingElementType, selectedGroupForNewElement || null)
-                }
-              }}
-            >
-              Add Element
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Link Dialog */}
       <Dialog open={isLinkDialogOpen} onOpenChange={setIsLinkDialogOpen}>

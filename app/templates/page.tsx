@@ -68,7 +68,11 @@ export default function TemplatesPage() {
           <div className="grid gap-4">
             {templates.map((template) => {
               return (
-                <div key={template.id} className="border border-border rounded-lg p-4 hover:bg-accent transition-colors">
+                <div 
+                  key={template.id} 
+                  className="border border-border rounded-lg p-4 hover:bg-accent transition-colors cursor-pointer"
+                  onDoubleClick={() => window.location.href = `/templates/${template.id}`}
+                >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <h3 className="font-semibold text-foreground">{template.templateName}</h3>
@@ -84,7 +88,7 @@ export default function TemplatesPage() {
                         <span>Status: {template.status || "active"}</span>
                       </div>
                     </div>
-                    <div className="flex gap-2 ml-4">
+                    <div className="flex gap-2 ml-4" onClick={(e) => e.stopPropagation()}>
                       <Link href={`/templates/${template.id}`}>
                         <Button size="sm" variant="outline" className="gap-1 bg-transparent">
                           <Edit className="w-4 h-4" />

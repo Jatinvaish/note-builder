@@ -15,7 +15,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Trash2 } from "lucide-react"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Trash2, Check, ChevronsUpDown } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 interface ElementPropertiesPanelProps {
   elementId: string
@@ -31,6 +34,7 @@ export function ElementPropertiesPanel({
   onUpdate,
 }: ElementPropertiesPanelProps) {
   const [element, setElement] = useState<any>(null)
+  const [open, setOpen] = useState(false)
 
   useEffect(() => {
     const traverse = (nodes: any[]): any => {
@@ -51,21 +55,22 @@ export function ElementPropertiesPanel({
   }, [elementId, templateContent])
 
   const handleUpdate = useCallback((key: string, value: any) => {
-    setElement((prev: any) => {
-      if (!prev) return prev
-      const updated = {
-        ...prev,
-        attrs: {
-          ...prev.attrs,
-          [key]: value,
-        },
-      }
-      
+    const updated = {
+      ...element,
+      attrs: {
+        ...element.attrs,
+        [key]: value,
+      },
+    }
+    
+    setElement(updated)
+    
+    // Defer the parent update to avoid setState during render
+    setTimeout(() => {
       const newContent = updateElementInContent(templateContent, elementId, updated)
       onUpdate(newContent)
-      return updated
-    })
-  }, [elementId, templateContent, onUpdate])
+    }, 0)
+  }, [element, elementId, templateContent, onUpdate])
 
   const handleDelete = useCallback(() => {
     const newContent = removeElementFromContent(templateContent, elementId)
@@ -156,10 +161,67 @@ export function ElementPropertiesPanel({
             <Label htmlFor="required" className="text-xs font-medium cursor-pointer">Required</Label>
           </div>
 
-          <div className="space-y-1">
-            <Label htmlFor="default" className="text-xs font-medium">Default Value</Label>
-            <Input id="default" key={`default-${elementId}`} defaultValue={attrs.defaultValue || ""} onBlur={(e) => handleUpdate("defaultValue", e.target.value)} placeholder="Default value" className="h-7 text-xs" />
-          </div>
+          {/* Smart Default Value based on element type */}
+          {attrs.elementType === "datetime" ? (
+            <div className="space-y-1">
+              <Label htmlFor="defaultDatetime" className="text-xs font-medium">Default Date/Time</Label>
+              <Select value={attrs.defaultDatetime || "none"} onValueChange={(val) => handleUpdate("defaultDatetime", val)}>
+                <SelectTrigger id="defaultDatetime" className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  <SelectItem value="now">Current Date/Time</SelectItem>
+                  <SelectItem value="today">Today (00:00)</SelectItem>
+                  <SelectItem value="custom">Custom Value</SelectItem>
+                </SelectContent>
+              </Select>
+              {attrs.defaultDatetime === "custom" && (
+                <Input
+                  type="datetime-local"
+                  key={`defaultValue-${elementId}`}
+                  defaultValue={attrs.defaultValue || ""}
+                  onBlur={(e) => handleUpdate("defaultValue", e.target.value)}
+                  className="h-7 text-xs mt-2"
+                />
+              )}
+            </div>
+          ) : attrs.elementType === "checkbox" ? (
+            <div className="space-y-1">
+              <Label htmlFor="defaultChecked" className="text-xs font-medium">Default State</Label>
+              <Select value={attrs.defaultValue === true || attrs.defaultValue === "true" ? "checked" : "unchecked"} onValueChange={(val) => handleUpdate("defaultValue", val === "checked")}>
+                <SelectTrigger id="defaultChecked" className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unchecked">Unchecked</SelectItem>
+                  <SelectItem value="checked">Checked</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          ) : attrs.elementType === "select" ? (
+            <div className="space-y-1">
+              <Label htmlFor="defaultSelect" className="text-xs font-medium">Default Selection</Label>
+              <Select value={attrs.defaultValue || ""} onValueChange={(val) => handleUpdate("defaultValue", val)}>
+                <SelectTrigger id="defaultSelect" className="h-7 text-xs"><SelectValue placeholder="Select default..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">None</SelectItem>
+                  {(attrs.options?.values || []).map((opt: string) => (
+                    <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <Label htmlFor="default" className="text-xs font-medium">Default Value</Label>
+              <Input
+                id="default"
+                type={attrs.elementType === "numeric" ? "number" : "text"}
+                key={`default-${elementId}`}
+                defaultValue={attrs.defaultValue || ""}
+                onBlur={(e) => handleUpdate("defaultValue", e.target.value)}
+                placeholder="Default value"
+                className="h-7 text-xs"
+              />
+            </div>
+          )}
 
           {/* COMMENTED: Placeholder
           <div className="space-y-1">
@@ -300,16 +362,51 @@ export function ElementPropertiesPanel({
           
           <div className="space-y-2">
             <Label className="text-xs font-medium">Clinical Data Field</Label>
-            <Select value={attrs.dataField || ""} onValueChange={(val) => handleUpdate("dataField", val)}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select field..." /></SelectTrigger>
-              <SelectContent className="max-h-64">
-                {PREDEFINED_DATA_FIELDS.map((field) => (
-                  <SelectItem key={field.id} value={field.id} className="text-xs">
-                    {field.label} <span className="text-muted-foreground ml-1">({field.category})</span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover open={open} onOpenChange={setOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={open}
+                  className="w-full justify-between h-8 text-xs font-normal"
+                >
+                  {attrs.dataField
+                    ? PREDEFINED_DATA_FIELDS.find((field) => field.id === attrs.dataField)?.label
+                    : "Select field..."}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[300px] p-0">
+                <Command>
+                  <CommandInput placeholder="Search field..." className="h-8 text-xs" />
+                  <CommandList>
+                    <CommandEmpty className="text-xs py-2 text-center">No field found.</CommandEmpty>
+                    <CommandGroup>
+                      {PREDEFINED_DATA_FIELDS.map((field) => (
+                        <CommandItem
+                          key={field.id}
+                          value={field.id}
+                          onSelect={(currentValue) => {
+                            handleUpdate("dataField", currentValue === attrs.dataField ? "" : currentValue)
+                            setOpen(false)
+                          }}
+                          className="text-xs"
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-3 w-3",
+                              attrs.dataField === field.id ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          {field.label}
+                          <span className="ml-auto text-muted-foreground text-[10px]">({field.category})</span>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
             {attrs.dataField && <p className="text-xs text-muted-foreground mt-2 p-2 bg-muted rounded">Field ID: <code className="font-mono">{attrs.dataField}</code></p>}
           </div>
 

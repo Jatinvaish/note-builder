@@ -7,11 +7,52 @@ import Underline from "@tiptap/extension-underline"
 import Link from "@tiptap/extension-link"
 import Image from "@tiptap/extension-image"
 import TextAlign from "@tiptap/extension-text-align"
+import { TextStyle } from "@tiptap/extension-text-style"
+import { Color } from "@tiptap/extension-color"
+import { Highlight } from "@tiptap/extension-highlight"
+import { FontFamily } from "@tiptap/extension-font-family"
 import { Table } from "@tiptap/extension-table"
 import TableRow from "@tiptap/extension-table-row"
 import TableCell from "@tiptap/extension-table-cell"
 import TableHeader from "@tiptap/extension-table-header"
 import { FormElementExtension } from "@/lib/tiptap-extensions"
+import { Extension } from "@tiptap/core"
+
+const FontSize = Extension.create({
+  name: 'fontSize',
+  addOptions() {
+    return {
+      types: ['textStyle'],
+    }
+  },
+  addGlobalAttributes() {
+    return [
+      {
+        types: this.options.types,
+        attributes: {
+          fontSize: {
+            default: null,
+            parseHTML: element => element.style.fontSize.replace(/['"]+/g, ''),
+            renderHTML: attributes => {
+              if (!attributes.fontSize) return {}
+              return { style: `font-size: ${attributes.fontSize}` }
+            },
+          },
+        },
+      },
+    ]
+  },
+  addCommands() {
+    return {
+      setFontSize: (fontSize: string) => ({ chain }) => {
+        return chain().setMark('textStyle', { fontSize }).run()
+      },
+      unsetFontSize: () => ({ chain }) => {
+        return chain().setMark('textStyle', { fontSize: null }).removeEmptyTextStyle().run()
+      },
+    }
+  },
+})
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -58,6 +99,11 @@ export function NoteEditor({
     extensions: [
       StarterKit,
       Underline,
+      TextStyle,
+      Color,
+      Highlight.configure({ multicolor: true }),
+      FontFamily,
+      FontSize,
       Link.configure({ openOnClick: false, autolink: true }),
       Image.configure({ HTMLAttributes: { class: "rounded-lg max-w-full" } }),
       TextAlign.configure({ types: ["heading", "paragraph"] }),
@@ -374,9 +420,9 @@ export function NoteEditor({
                     {group.group_name}
                   </p>
                   <div className="space-y-0.5">
-                    {groupElements.map((element: any) => (
+                    {groupElements.map((element: any, idx: number) => (
                       <FieldInput
-                        key={element.elementKey}
+                        key={`${element.elementKey}-${idx}`}
                         element={element}
                         value={formData[element.elementKey] || ""}
                         onChange={(val: any) => onDataChange(element.elementKey, val)}
@@ -395,9 +441,9 @@ export function NoteEditor({
                 <div className="space-y-0.5">
                   {elements
                     .filter((el: any) => !el.group_id)
-                    .map((element: any) => (
+                    .map((element: any, idx: number) => (
                       <FieldInput
-                        key={element.elementKey}
+                        key={`${element.elementKey}-${idx}`}
                         element={element}
                         value={formData[element.elementKey] || ""}
                         onChange={(val: any) => onDataChange(element.elementKey, val)}
@@ -505,15 +551,37 @@ const FieldInput = memo(function FieldInput({ element, value, onChange }: any) {
   }
 
   if (elementType === "input" || elementType === "datetime" || elementType === "numeric") {
+    // For datetime-local input, convert ISO to datetime-local format (YYYY-MM-DDTHH:mm)
+    let inputValue = value
+    if (elementType === "datetime" && value) {
+      try {
+        const date = new Date(value)
+        if (!isNaN(date.getTime())) {
+          const year = date.getFullYear()
+          const month = String(date.getMonth() + 1).padStart(2, '0')
+          const day = String(date.getDate()).padStart(2, '0')
+          const hours = String(date.getHours()).padStart(2, '0')
+          const minutes = String(date.getMinutes()).padStart(2, '0')
+          inputValue = `${year}-${month}-${day}T${hours}:${minutes}`
+        }
+      } catch {}
+    }
+
     return (
       <div className="flex items-center gap-1">
         <Label className="text-[10px] w-20 flex-shrink-0">
           {label}{required && <span className="text-red-500">*</span>}
         </Label>
         <Input
-          type={elementType === "datetime" ? "datetime-local" : elementType === "numeric" ? "number" : "text"}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
+          type={elementType === "numeric" ? "number" : elementType === "datetime" ? "datetime-local" : "text"}
+          value={inputValue}
+          onChange={(e) => {
+            if (elementType === "datetime") {
+              onChange(e.target.value ? new Date(e.target.value).toISOString() : e.target.value)
+            } else {
+              onChange(e.target.value)
+            }
+          }}
           placeholder={placeholder}
           className="h-6 text-[10px] flex-1"
         />

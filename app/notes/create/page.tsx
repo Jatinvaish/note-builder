@@ -1,11 +1,33 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { AppHeader } from "@/components/app-header"
 import { NoteEditor } from "@/components/note-editor"
 import { useToast } from "@/hooks/use-toast"
 import { templateApi } from "@/services/template-api"
+import { AutoFillService } from "@/lib/auto-fill-service"
+
+const extractFormElements = (content: any): any[] => {
+  const elements: any[] = []
+  const traverse = (node: any) => {
+    if (node.type === "formElement" && node.attrs) {
+      elements.push({
+        elementKey: node.attrs.elementKey || "",
+        elementType: node.attrs.elementType || "input",
+        label: node.attrs.label || "Field",
+        dataField: node.attrs.dataField || "",
+        defaultDatetime: node.attrs.defaultDatetime || "",
+        defaultValue: node.attrs.defaultValue || "",
+      })
+    }
+    if (Array.isArray(node.content)) {
+      node.content.forEach(traverse)
+    }
+  }
+  if (content) traverse(content)
+  return elements
+}
 
 export default function CreateNotePage() {
   const router = useRouter()
@@ -14,6 +36,13 @@ export default function CreateNotePage() {
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null)
   const [formData, setFormData] = useState<Record<string, any>>({})
   const [loading, setLoading] = useState(true)
+  
+  // Mock patient/admission IDs - replace with actual values from context/props
+  // TODO
+  const patientId = 315
+  const admissionId = 80
+  
+  const autoFillService = useMemo(() => new AutoFillService(), [])
 
   useEffect(() => {
     const loadTemplates = async () => {
@@ -36,7 +65,44 @@ export default function CreateNotePage() {
     try {
       const fullTemplate = await templateApi.view(template.id)
       setSelectedTemplate(fullTemplate)
-      setFormData({})
+      
+      // Extract form elements and auto-fill
+      const elements = extractFormElements(fullTemplate.templateContent)
+      
+      // Initialize form data with smart defaults
+      const initialData: Record<string, any> = {}
+      elements.forEach((el) => {
+        if (el.elementType === "checkbox") {
+          initialData[el.elementKey] = el.defaultValue === true || el.defaultValue === "true"
+        } else if (el.elementType === "datetime") {
+          if (el.defaultDatetime === "now") {
+            initialData[el.elementKey] = new Date().toISOString()
+          } else if (el.defaultDatetime === "today") {
+            const today = new Date()
+            today.setHours(0, 0, 0, 0)
+            initialData[el.elementKey] = today.toISOString()
+          } else if (el.defaultValue) {
+            initialData[el.elementKey] = el.defaultValue
+          } else {
+            initialData[el.elementKey] = ""
+          }
+        } else {
+          initialData[el.elementKey] = el.defaultValue || ""
+        }
+      })
+      
+      // Auto-fill data from API
+      try {
+        const autoFilledData = await autoFillService.autoFillElements(
+          elements,
+          patientId,
+          admissionId
+        )
+        setFormData({ ...initialData, ...autoFilledData })
+      } catch (error) {
+        console.error("Auto-fill error:", error)
+        setFormData(initialData)
+      }
     } catch (error) {
       toast({ title: "Error", description: "Failed to load template", variant: "destructive" })
     }

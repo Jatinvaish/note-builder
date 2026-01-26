@@ -25,6 +25,23 @@ export function FormElementNode({ node }: FormElementNodeProps) {
   let displayValue = defaultValue || "[Empty]"
   let isSignature = false
   
+  // Format datetime for display
+  if (elementType === "datetime" && defaultValue) {
+    try {
+      const date = new Date(defaultValue)
+      if (!isNaN(date.getTime())) {
+        const day = String(date.getDate()).padStart(2, '0')
+        const month = String(date.getMonth() + 1).padStart(2, '0')
+        const year = date.getFullYear()
+        let hours = date.getHours()
+        const minutes = String(date.getMinutes()).padStart(2, '0')
+        const ampm = hours >= 12 ? 'PM' : 'AM'
+        hours = hours % 12 || 12
+        displayValue = `${day}-${month}-${year} ${hours}:${minutes} ${ampm}`
+      }
+    } catch {}
+  }
+  
   if (elementType === "signature" && defaultValue) {
     try {
       const paths = JSON.parse(defaultValue)
