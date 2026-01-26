@@ -137,6 +137,7 @@ export function ElementPropertiesPanel({
                 <SelectItem value="numeric">Numeric</SelectItem>
                 <SelectItem value="checkbox">Checkbox</SelectItem>
                 <SelectItem value="select">Dropdown</SelectItem>
+                <SelectItem value="multiselect">Multi-Select</SelectItem>
                 <SelectItem value="textarea">Text Area</SelectItem>
                 <SelectItem value="datetime">Date/Time</SelectItem>
                 <SelectItem value="signature">Signature</SelectItem>
@@ -253,6 +254,27 @@ export function ElementPropertiesPanel({
                 />
               </div>
               {hasDropdownValidation && <p className="text-xs text-destructive">⚠️ Add options or select a data field</p>}
+            </div>
+          )}
+
+          {attrs.elementType === "multiselect" && (
+            <div className="space-y-2 p-3 border rounded bg-muted/30">
+              <Label className="text-xs font-medium">Multi-Select Options *</Label>
+              <p className="text-xs text-muted-foreground">Either add options OR select a data field (required)</p>
+              <div className="space-y-1">
+                <Label htmlFor="multiselect-options" className="text-xs">Options (comma-separated)</Label>
+                <Input
+                  id="multiselect-options"
+                  key={`multiselect-options-${elementId}`}
+                  defaultValue={attrs.options?.values?.join(", ") || ""}
+                  onBlur={(e) => handleUpdate("options", { source: "static", values: e.target.value.split(",").map((v) => v.trim()).filter(Boolean) })}
+                  placeholder="Option 1, Option 2, Option 3"
+                  className="h-7 text-xs"
+                />
+              </div>
+              {attrs.elementType === "multiselect" && (!attrs.options?.values || attrs.options.values.length === 0) && !attrs.dataField && (
+                <p className="text-xs text-destructive">⚠️ Add options or select a data field</p>
+              )}
             </div>
           )}
 

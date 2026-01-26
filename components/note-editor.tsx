@@ -63,6 +63,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { Download, Clock, Mic, MicOff } from "lucide-react"
+import { PREDEFINED_DATA_FIELDS } from "@/lib/predefined-data-fields"
 
 interface NoteEditorProps {
   templates: any[]
@@ -75,6 +76,7 @@ interface NoteEditorProps {
   onVersionRestore?: (version: any) => void
   isEditMode?: boolean
   initialContent?: any
+  onPhysicalExamClick?: (fieldId: string) => void
 }
 
 export function NoteEditor({ 
@@ -87,7 +89,8 @@ export function NoteEditor({
   versionHistory = [], 
   onVersionRestore,
   isEditMode = false,
-  initialContent
+  initialContent,
+  onPhysicalExamClick
 }: NoteEditorProps) {
   const { toast } = useToast()
   const [isVersionDialogOpen, setIsVersionDialogOpen] = useState(false)
@@ -426,6 +429,7 @@ export function NoteEditor({
                         element={element}
                         value={formData[element.elementKey] || ""}
                         onChange={(val: any) => onDataChange(element.elementKey, val)}
+                        onPhysicalExamClick={onPhysicalExamClick}
                       />
                     ))}
                   </div>
@@ -447,6 +451,7 @@ export function NoteEditor({
                         element={element}
                         value={formData[element.elementKey] || ""}
                         onChange={(val: any) => onDataChange(element.elementKey, val)}
+                        onPhysicalExamClick={onPhysicalExamClick}
                       />
                     ))}
                 </div>
@@ -499,12 +504,18 @@ export function NoteEditor({
   )
 }
 
-const FieldInput = memo(function FieldInput({ element, value, onChange }: any) {
-  const { elementType, label, required, placeholder, options } = element
+const FieldInput = memo(function FieldInput({ element, value, onChange, onPhysicalExamClick }: any) {
+  const { elementType, label, required, placeholder, options, dataField } = element
   const [isRecording, setIsRecording] = useState(false)
   const [isSignatureOpen, setIsSignatureOpen] = useState(false)
   const recognitionRef = useRef<any>(null)
   const isDrawingRef = useRef(false)
+
+  const isPhysicalExamField = dataField && (() => {
+    const field = PREDEFINED_DATA_FIELDS.find(f => f.id === dataField)
+    if (!field || !('actions' in field)) return false
+    return field.actions?.type === 'MODEL_OPEN' && field.call_time?.on_click_element
+  })()
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'webkitSpeechRecognition' in window) {
@@ -565,6 +576,26 @@ const FieldInput = memo(function FieldInput({ element, value, onChange }: any) {
           inputValue = `${year}-${month}-${day}T${hours}:${minutes}`
         }
       } catch {}
+    }
+
+    // Physical exam fields show as button
+    if (isPhysicalExamField && onPhysicalExamClick) {
+      return (
+        <div className="flex items-center gap-1">
+          <Label className="text-[10px] w-20 flex-shrink-0">
+            {label}{required && <span className="text-red-500">*</span>}
+          </Label>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => onPhysicalExamClick(element.elementKey)}
+            className="h-6 text-[10px] flex-1 justify-start"
+          >
+            {value || "Click to examine"}
+          </Button>
+        </div>
+      )
     }
 
     return (

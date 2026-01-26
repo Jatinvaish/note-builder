@@ -1,14 +1,15 @@
 export interface FormElement {
-  elementType: "input" | "checkbox" | "select" | "datetime" | "signature" | "textarea" | "speech" | "voice_to_text"
+  elementType: "input" | "checkbox" | "select" | "datetime" | "signature" | "textarea" | "speech" | "voice_to_text" | "dropdown" | "numeric" | "multiselect"
   label: string
   elementKey: string
-  defaultValue: string
+  defaultValue: string | boolean
+  defaultDatetime?: string
   required: boolean
   placeholder?: string
   helpText?: string
   metadata?: Record<string, any>
   hasMic?: boolean
-  options?: SelectOptions
+  options?: SelectOptions | string[]
   group_id?: string | null
   data_binding?: DataBinding | null
   dataField?: string
@@ -60,6 +61,7 @@ export interface Template {
 export interface Group {
   id: string
   group_name: string
+  name?: string
   status: "active" | "inactive"
   order_by: number
 }

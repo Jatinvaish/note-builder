@@ -120,6 +120,7 @@ const ELEMENT_TYPES = [
   { id: "input", label: "Text Input", icon: Type },
   { id: "checkbox", label: "Checkbox", icon: CheckSquare },
   { id: "select", label: "Dropdown", icon: ChevronDown },
+  { id: "multiselect", label: "Multi-Select", icon: ChevronDown },
   { id: "textarea", label: "Text Area", icon: FileText },
   { id: "datetime", label: "Date/Time", icon: Calendar },
   { id: "signature", label: "Signature", icon: PenTool },

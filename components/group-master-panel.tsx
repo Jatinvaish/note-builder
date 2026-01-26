@@ -36,7 +36,11 @@ export function GroupMasterPanel({
 }: GroupMasterPanelProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingGroup, setEditingGroup] = useState<Group | null>(null)
-  const [formData, setFormData] = useState({ group_name: "", status: "active" as const, order_by: 0 })
+  const [formData, setFormData] = useState<{ group_name: string; status: "active" | "inactive"; order_by: number }>({
+    group_name: "",
+    status: "active",
+    order_by: 0
+  })
   const [draggedGroupId, setDraggedGroupId] = useState<string | null>(null)
 
   const sortedGroups = [...groups].sort((a, b) => a.order_by - b.order_by)
@@ -76,8 +80,9 @@ export function GroupMasterPanel({
       })
     } else {
       onGroupCreate({
-        ...formData,
         group_name: formData.group_name.trim(),
+        status: formData.status,
+        order_by: formData.order_by,
       })
     }
 
@@ -192,7 +197,10 @@ export function GroupMasterPanel({
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Status</label>
-              <Select value={formData.status} onValueChange={(value: any) => setFormData({ ...formData, status: value })}>
+              <Select
+                value={formData.status}
+                onValueChange={(value: "active" | "inactive") => setFormData({ ...formData, status: value })}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
