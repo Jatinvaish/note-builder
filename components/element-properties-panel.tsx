@@ -198,10 +198,10 @@ export function ElementPropertiesPanel({
           ) : attrs.elementType === "select" ? (
             <div className="space-y-1">
               <Label htmlFor="defaultSelect" className="text-xs font-medium">Default Selection</Label>
-              <Select value={attrs.defaultValue || ""} onValueChange={(val) => handleUpdate("defaultValue", val)}>
+              <Select value={attrs.defaultValue || "__none__"} onValueChange={(val) => handleUpdate("defaultValue", val === "__none__" ? "" : val)}>
                 <SelectTrigger id="defaultSelect" className="h-7 text-xs"><SelectValue placeholder="Select default..." /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">None</SelectItem>
+                  <SelectItem value="__none__">None</SelectItem>
                   {(attrs.options?.values || []).map((opt: string) => (
                     <SelectItem key={opt} value={opt}>{opt}</SelectItem>
                   ))}

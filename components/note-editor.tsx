@@ -809,7 +809,7 @@ const FieldInput = memo(function FieldInput({ element, value, onChange }: any) {
           {label}{required && <span className="text-red-500">*</span>}
         </Label>
         <Select value={value} onValueChange={onChange}>
-          <SelectTrigger className="h-6 text-[10px] flex-1">
+          <SelectTrigger className="h-6 text-[10px] flex-1 p-1">
             <SelectValue placeholder={placeholder || "Select..."} />
           </SelectTrigger>
           <SelectContent>
