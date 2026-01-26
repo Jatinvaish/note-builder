@@ -2,23 +2,41 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { getTemplates, getTemplateNoteCount, deleteTemplate } from "@/lib/template-storage"
+import { templateApi } from "@/services/template-api"
 import { Button } from "@/components/ui/button"
 import { Plus, Edit, Trash2, Clock } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 export default function TemplatesPage() {
   const [templates, setTemplates] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const { toast } = useToast()
+
+  const loadTemplates = async () => {
+    try {
+      setLoading(true)
+      const response = await templateApi.list()
+      setTemplates(response || [])
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to load templates", variant: "destructive" })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    setTemplates(getTemplates())
-    setLoading(false)
+    loadTemplates()
   }, [])
 
-  const handleDelete = (templateId: string) => {
+  const handleDelete = async (templateId: number) => {
     if (confirm("Are you sure you want to delete this template?")) {
-      deleteTemplate(templateId)
-      setTemplates(getTemplates())
+      try {
+        await templateApi.delete(templateId)
+        toast({ title: "Success", description: "Template deleted successfully" })
+        loadTemplates()
+      } catch (error) {
+        toast({ title: "Error", description: "Failed to delete template", variant: "destructive" })
+      }
     }
   }
 
@@ -49,9 +67,6 @@ export default function TemplatesPage() {
         ) : (
           <div className="grid gap-4">
             {templates.map((template) => {
-              const noteCount = getTemplateNoteCount(template.id)
-              const versionCount = template.versionHistory?.length || 0
-
               return (
                 <div key={template.id} className="border border-border rounded-lg p-4 hover:bg-accent transition-colors">
                   <div className="flex items-start justify-between">
@@ -63,10 +78,10 @@ export default function TemplatesPage() {
                       <div className="flex gap-4 mt-3 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <Clock className="w-3 h-3" />
-                          {versionCount} version{versionCount !== 1 ? "s" : ""}
+                          {template.versionHistoryCount} version{template.versionHistoryCount !== 1 ? "s" : ""}
                         </span>
-                        <span>Used in {noteCount} note{noteCount !== 1 ? "s" : ""}</span>
-                        <span>Type: {template.templateType || "regular"}</span>
+                        <span>Type: {template.templateType || "normal"}</span>
+                        <span>Status: {template.status || "active"}</span>
                       </div>
                     </div>
                     <div className="flex gap-2 ml-4">

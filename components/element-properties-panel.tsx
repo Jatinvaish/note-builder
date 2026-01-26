@@ -97,14 +97,13 @@ export function ElementPropertiesPanel({
         </Button>
       </div>
 
-      <Tabs defaultValue="basic" className="w-full">
-        <TabsList className="w-full grid grid-cols-3">
-          <TabsTrigger value="basic" className="text-xs">Basic</TabsTrigger>
-          <TabsTrigger value="data" className="text-xs">Data Field</TabsTrigger>
-          <TabsTrigger value="binding" className="text-xs">Binding</TabsTrigger>
+      <Tabs defaultValue="properties" className="w-full">
+        <TabsList className="w-full grid grid-cols-2">
+          <TabsTrigger value="properties" className="text-xs">Properties</TabsTrigger>
+          <TabsTrigger value="databinding" className="text-xs">Data Binding</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="basic" className="space-y-3">
+        <TabsContent value="properties" className="space-y-3">
           <div className="space-y-1">
             <Label htmlFor="label" className="text-xs font-medium">Label *</Label>
             <Input
@@ -117,10 +116,12 @@ export function ElementPropertiesPanel({
             />
           </div>
 
+          {/* COMMENTED: Element Key
           <div className="space-y-1">
             <Label htmlFor="elementKey" className="text-xs font-medium">Element Key</Label>
             <Input id="elementKey" value={attrs.elementKey || ""} disabled className="h-7 text-xs bg-muted" />
           </div>
+          */}
 
           <div className="space-y-1">
             <Label htmlFor="type" className="text-xs font-medium">Type</Label>
@@ -128,6 +129,7 @@ export function ElementPropertiesPanel({
               <SelectTrigger id="type" className="h-7 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="input">Text Input</SelectItem>
+                <SelectItem value="numeric">Numeric</SelectItem>
                 <SelectItem value="checkbox">Checkbox</SelectItem>
                 <SelectItem value="select">Dropdown</SelectItem>
                 <SelectItem value="textarea">Text Area</SelectItem>
@@ -159,15 +161,19 @@ export function ElementPropertiesPanel({
             <Input id="default" key={`default-${elementId}`} defaultValue={attrs.defaultValue || ""} onBlur={(e) => handleUpdate("defaultValue", e.target.value)} placeholder="Default value" className="h-7 text-xs" />
           </div>
 
+          {/* COMMENTED: Placeholder
           <div className="space-y-1">
             <Label htmlFor="placeholder" className="text-xs font-medium">Placeholder</Label>
             <Input id="placeholder" key={`placeholder-${elementId}`} defaultValue={attrs.placeholder || ""} onBlur={(e) => handleUpdate("placeholder", e.target.value)} placeholder="Placeholder text" className="h-7 text-xs" />
           </div>
+          */}
 
+          {/* COMMENTED: Help Text
           <div className="space-y-1">
             <Label htmlFor="helpText" className="text-xs font-medium">Help Text</Label>
             <Input id="helpText" key={`helpText-${elementId}`} defaultValue={attrs.helpText || ""} onBlur={(e) => handleUpdate("helpText", e.target.value)} placeholder="Help text for users" className="h-7 text-xs" />
           </div>
+          */}
 
           {attrs.elementType === "select" && (
             <div className="space-y-2 p-3 border rounded bg-muted/30">
@@ -187,10 +193,111 @@ export function ElementPropertiesPanel({
               {hasDropdownValidation && <p className="text-xs text-destructive">⚠️ Add options or select a data field</p>}
             </div>
           )}
+
+          {/* Validation Properties */}
+          {(attrs.elementType === "input" || attrs.elementType === "numeric" || attrs.elementType === "textarea") && (
+            <div className="space-y-2 p-3 border rounded bg-muted/30">
+              <Label className="text-xs font-semibold">Validation</Label>
+              
+              {(attrs.elementType === "input" || attrs.elementType === "textarea") && (
+                <>
+                  <div className="space-y-1">
+                    <Label htmlFor="minLength" className="text-xs">Min Length</Label>
+                    <Input
+                      id="minLength"
+                      type="number"
+                      key={`minLength-${elementId}`}
+                      defaultValue={attrs.minLength || ""}
+                      onBlur={(e) => handleUpdate("minLength", e.target.value ? Number(e.target.value) : undefined)}
+                      placeholder="Minimum length"
+                      className="h-7 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="maxLength" className="text-xs">Max Length</Label>
+                    <Input
+                      id="maxLength"
+                      type="number"
+                      key={`maxLength-${elementId}`}
+                      defaultValue={attrs.maxLength || ""}
+                      onBlur={(e) => handleUpdate("maxLength", e.target.value ? Number(e.target.value) : undefined)}
+                      placeholder="Maximum length"
+                      className="h-7 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="pattern" className="text-xs">Pattern (Regex)</Label>
+                    <Input
+                      id="pattern"
+                      key={`pattern-${elementId}`}
+                      defaultValue={attrs.pattern || ""}
+                      onBlur={(e) => handleUpdate("pattern", e.target.value)}
+                      placeholder="^[A-Za-z]+$"
+                      className="h-7 text-xs"
+                    />
+                  </div>
+                </>
+              )}
+              
+              {attrs.elementType === "numeric" && (
+                <>
+                  <div className="space-y-1">
+                    <Label htmlFor="min" className="text-xs">Min Value</Label>
+                    <Input
+                      id="min"
+                      type="number"
+                      key={`min-${elementId}`}
+                      defaultValue={attrs.min || ""}
+                      onBlur={(e) => handleUpdate("min", e.target.value ? Number(e.target.value) : undefined)}
+                      placeholder="Minimum value"
+                      className="h-7 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="max" className="text-xs">Max Value</Label>
+                    <Input
+                      id="max"
+                      type="number"
+                      key={`max-${elementId}`}
+                      defaultValue={attrs.max || ""}
+                      onBlur={(e) => handleUpdate("max", e.target.value ? Number(e.target.value) : undefined)}
+                      placeholder="Maximum value"
+                      className="h-7 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="step" className="text-xs">Step</Label>
+                    <Input
+                      id="step"
+                      type="number"
+                      key={`step-${elementId}`}
+                      defaultValue={attrs.step || 1}
+                      onBlur={(e) => handleUpdate("step", e.target.value ? Number(e.target.value) : 1)}
+                      placeholder="Step value"
+                      className="h-7 text-xs"
+                    />
+                  </div>
+                </>
+              )}
+              
+              <div className="space-y-1">
+                <Label htmlFor="validationMessage" className="text-xs">Custom Validation Message</Label>
+                <Input
+                  id="validationMessage"
+                  key={`validationMessage-${elementId}`}
+                  defaultValue={attrs.validationMessage || ""}
+                  onBlur={(e) => handleUpdate("validationMessage", e.target.value)}
+                  placeholder="Error message"
+                  className="h-7 text-xs"
+                />
+              </div>
+            </div>
+          )}
         </TabsContent>
 
-        <TabsContent value="data" className="space-y-3">
-          <p className="text-xs text-muted-foreground mb-2">Select the clinical data field this element will capture</p>
+        <TabsContent value="databinding" className="space-y-3">
+          <p className="text-xs text-muted-foreground mb-2">Configure data binding for this field</p>
+          
           <div className="space-y-2">
             <Label className="text-xs font-medium">Clinical Data Field</Label>
             <Select value={attrs.dataField || ""} onValueChange={(val) => handleUpdate("dataField", val)}>
@@ -205,10 +312,7 @@ export function ElementPropertiesPanel({
             </Select>
             {attrs.dataField && <p className="text-xs text-muted-foreground mt-2 p-2 bg-muted rounded">Field ID: <code className="font-mono">{attrs.dataField}</code></p>}
           </div>
-        </TabsContent>
 
-        <TabsContent value="binding" className="space-y-3">
-          <p className="text-xs text-muted-foreground">Configure data binding for this field</p>
           <div className="space-y-1">
             <Label className="text-xs font-medium">Binding Type</Label>
             <Select value={attrs.data_binding?.type || "manual"} onValueChange={(val) => handleUpdate("data_binding", { ...(attrs.data_binding || {}), type: val })}>

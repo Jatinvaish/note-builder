@@ -201,7 +201,7 @@ export function NoteEditor({
             return ``
           }
           
-          if (elementType === "input" || elementType === "textarea" || elementType === "datetime" || elementType === "voice_to_text") {
+          if (elementType === "input" || elementType === "textarea" || elementType === "datetime" || elementType === "voice_to_text" || elementType === "numeric") {
             return `<span><strong>${fieldValue || ""}</strong></span>`
           }
           
@@ -340,13 +340,13 @@ export function NoteEditor({
       <div className="w-[380px] border-l border-t border-r border-b bg-white overflow-y-auto p-3">
         <div className="mb-3">
           <p className="text-[10px] font-semibold mb-1.5 uppercase">Select Template</p>
-          <Select value={selectedTemplate?.id || ""} onValueChange={onTemplateSelect} disabled={isEditMode}>
+          <Select value={selectedTemplate?.id?.toString() || ""} onValueChange={onTemplateSelect} disabled={isEditMode}>
             <SelectTrigger className="h-7 text-xs">
               <SelectValue placeholder="Choose Template" />
             </SelectTrigger>
             <SelectContent>
               {templates?.map((t) => (
-                <SelectItem key={t.id} value={t.id} className="text-xs">
+                <SelectItem key={t.id} value={t.id.toString()} className="text-xs">
                   {t.templateName}
                 </SelectItem>
               ))}
@@ -504,14 +504,14 @@ const FieldInput = memo(function FieldInput({ element, value, onChange }: any) {
     }
   }
 
-  if (elementType === "input" || elementType === "datetime") {
+  if (elementType === "input" || elementType === "datetime" || elementType === "numeric") {
     return (
       <div className="flex items-center gap-1">
         <Label className="text-[10px] w-20 flex-shrink-0">
           {label}{required && <span className="text-red-500">*</span>}
         </Label>
         <Input
-          type={elementType === "datetime" ? "datetime-local" : "text"}
+          type={elementType === "datetime" ? "datetime-local" : elementType === "numeric" ? "number" : "text"}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}

@@ -12,6 +12,7 @@ import {
   PenTool,
   Mic,
   AlignLeft,
+  Hash,
 } from "lucide-react"
 
 interface ElementPaletteProps {
@@ -25,6 +26,12 @@ const ELEMENT_TYPES = [
     label: "Text Input",
     icon: Type,
     description: "Single line text field",
+  },
+  {
+    id: "numeric",
+    label: "Numeric",
+    icon: Hash,
+    description: "Number input field",
   },
   {
     id: "textarea",

@@ -56,6 +56,9 @@ import {
   Image as ImageIcon,
   Undo,
   Redo,
+  Columns,
+  Rows,
+  Trash2,
 } from "lucide-react"
 
 interface FreeFormEditorProps {
@@ -428,6 +431,79 @@ export function FreeFormEditor({
               <ImageIcon className="w-4 h-4" />
             </Button>
           </div>
+
+          {/* Table Operations */}
+          {editor?.isActive("table") && (
+            <div className="flex gap-1 border-l pl-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-8 text-xs gap-1">
+                    <Columns className="w-4 h-4" />
+                    Column
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem
+                    onClick={() => editor?.chain().focus().addColumnBefore().run()}
+                    className="text-xs"
+                  >
+                    Add Column Before
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => editor?.chain().focus().addColumnAfter().run()}
+                    className="text-xs"
+                  >
+                    Add Column After
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => editor?.chain().focus().deleteColumn().run()}
+                    className="text-xs text-red-600"
+                  >
+                    Delete Column
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-8 text-xs gap-1">
+                    <Rows className="w-4 h-4" />
+                    Row
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem
+                    onClick={() => editor?.chain().focus().addRowBefore().run()}
+                    className="text-xs"
+                  >
+                    Add Row Before
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => editor?.chain().focus().addRowAfter().run()}
+                    className="text-xs"
+                  >
+                    Add Row After
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => editor?.chain().focus().deleteRow().run()}
+                    className="text-xs text-red-600"
+                  >
+                    Delete Row
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button
+                onClick={() => editor?.chain().focus().deleteTable().run()}
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                title="Delete Table"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 

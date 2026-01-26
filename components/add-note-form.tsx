@@ -7,9 +7,10 @@ import { TemplateRenderer } from "./template-renderer"
 import { AutoFillService } from "@/lib/auto-fill-service"
 import { toast } from "@/hooks/use-toast"
 import { Label } from "@/components/ui/label"
+import { templateApi } from "@/services/template-api"
 
 interface Template {
-  id: string
+  id: number
   templateName: string
   templateContent: any
 }
@@ -42,11 +43,8 @@ export function AddNoteForm({ patientId = 1, admissionId = 1, onSave, onCancel }
   const fetchTemplates = async () => {
     setIsLoading(true)
     try {
-      const stored = localStorage.getItem("templates")
-      if (stored) {
-        const parsed = JSON.parse(stored)
-        setTemplates(Array.isArray(parsed) ? parsed : [])
-      }
+      const data = await templateApi.listActive()
+      setTemplates(Array.isArray(data) ? data : [])
     } catch (error: any) {
       toast({ title: "Error", description: "Failed to load templates", variant: "destructive" })
     } finally {
@@ -80,10 +78,18 @@ export function AddNoteForm({ patientId = 1, admissionId = 1, onSave, onCancel }
     return elements
   }
 
-  const handleTemplateChange = (templateId: string) => {
-    const template = templates.find(t => t.id === templateId)
-    setSelectedTemplate(template || null)
-    setFormData({})
+  const handleTemplateChange = async (templateId: string) => {
+    const template = templates.find(t => t.id.toString() === templateId)
+    if (!template) return
+    
+    try {
+      // Fetch full template with content
+      const fullTemplate = await templateApi.view(template.id)
+      setSelectedTemplate(fullTemplate)
+      setFormData({})
+    } catch (error: any) {
+      toast({ title: "Error", description: "Failed to load template", variant: "destructive" })
+    }
   }
 
   const handleDataChange = (key: string, value: any) => {
@@ -128,13 +134,13 @@ export function AddNoteForm({ patientId = 1, admissionId = 1, onSave, onCancel }
     <div className="space-y-3 p-4">
       <div>
         <Label className="text-xs font-semibold mb-1.5 block">Select Note</Label>
-        <Select value={selectedTemplate?.id || ""} onValueChange={handleTemplateChange}>
+        <Select value={selectedTemplate?.id.toString() || ""} onValueChange={handleTemplateChange}>
           <SelectTrigger className="h-8 text-xs">
             <SelectValue placeholder="-- Choose Note --" />
           </SelectTrigger>
           <SelectContent>
             {templates.map((template) => (
-              <SelectItem key={template.id} value={template.id} className="text-xs">
+              <SelectItem key={template.id} value={template.id.toString()} className="text-xs">
                 {template.templateName}
               </SelectItem>
             ))}

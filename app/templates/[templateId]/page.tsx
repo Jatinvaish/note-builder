@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react"
 import { useRouter, useParams } from "next/navigation"
 import Link from "next/link"
-import { getTemplate } from "@/lib/template-storage"
+import { templateApi } from "@/services/template-api"
 import { TemplateBuilder } from "@/components/template-builder"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 import type { Template } from "@/lib/types"
+import { useToast } from "@/hooks/use-toast"
 
 export default function EditTemplatePage() {
   const router = useRouter()
@@ -15,21 +16,39 @@ export default function EditTemplatePage() {
   const templateId = params.templateId as string
   const [template, setTemplate] = useState<Template | null>(null)
   const [loading, setLoading] = useState(true)
+  const { toast } = useToast()
 
   useEffect(() => {
-    if (templateId) {
-      const t = getTemplate(templateId)
-      if (t) {
-        setTemplate(t)
+    const loadTemplate = async () => {
+      try {
+        const data = await templateApi.view(Number(templateId))
+        setTemplate(data)
+      } catch (error) {
+        toast({ title: "Error", description: "Failed to load template", variant: "destructive" })
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     }
+    if (templateId) loadTemplate()
   }, [templateId])
 
   const handleSave = async (savedTemplate: Template) => {
-    const { saveTemplate } = await import("@/lib/template-storage")
-    saveTemplate(savedTemplate)
-    router.push("/templates")
+    try {
+      const result = await templateApi.save({
+        id: Number(templateId),
+        templateName: savedTemplate.templateName,
+        templateDescription: savedTemplate.templateDescription,
+        templateType: savedTemplate.templateType,
+        templateContent: savedTemplate.templateContent,
+        groups: savedTemplate.groups,
+        versionHistory: savedTemplate.versionHistory || [],
+        status: savedTemplate.status || "active",
+      })
+      toast({ title: "Success", description: "Template updated successfully" })
+      router.push("/templates")
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to update template", variant: "destructive" })
+    }
   }
 
   const handleCancel = () => {

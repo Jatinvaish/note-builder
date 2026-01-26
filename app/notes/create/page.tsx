@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { AppHeader } from "@/components/app-header"
 import { NoteEditor } from "@/components/note-editor"
 import { useToast } from "@/hooks/use-toast"
+import { templateApi } from "@/services/template-api"
 
 export default function CreateNotePage() {
   const router = useRouter()
@@ -15,18 +16,30 @@ export default function CreateNotePage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const stored = localStorage.getItem("templates")
-    if (stored) {
-      const parsed = JSON.parse(stored)
-      setTemplates(Array.isArray(parsed) ? parsed : [])
+    const loadTemplates = async () => {
+      try {
+        const data = await templateApi.listActive()
+        setTemplates(Array.isArray(data) ? data : [])
+      } catch (error) {
+        toast({ title: "Error", description: "Failed to load templates", variant: "destructive" })
+      } finally {
+        setLoading(false)
+      }
     }
-    setLoading(false)
+    loadTemplates()
   }, [])
 
-  const handleTemplateSelect = (templateId: string) => {
-    const template = templates.find((t) => t.id === templateId)
-    setSelectedTemplate(template || null)
-    setFormData({})
+  const handleTemplateSelect = async (templateId: string) => {
+    const template = templates.find((t) => t.id.toString() === templateId)
+    if (!template) return
+    
+    try {
+      const fullTemplate = await templateApi.view(template.id)
+      setSelectedTemplate(fullTemplate)
+      setFormData({})
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to load template", variant: "destructive" })
+    }
   }
 
   const handleDataChange = (key: string, value: any) => {
