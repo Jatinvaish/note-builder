@@ -8,36 +8,11 @@ import { useToast } from "@/hooks/use-toast"
 import { templateApi } from "@/services/template-api"
 import { consultationNoteApi } from "@/services/consultation-note-api"
 import { PREDEFINED_DATA_FIELDS } from "@/lib/predefined-data-fields"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { PhysicalExaminationModal, PhysicalExamConfig } from "@/components/physical-examination-modal"
 
-interface PhysicalExamSection {
-  enabled: boolean
-  findings: string[]
-}
 
-interface PhysicalExamConfig {
-  pulmonary: PhysicalExamSection
-  cardiovascular: PhysicalExamSection
-  neurological: PhysicalExamSection
-  abdominal: PhysicalExamSection
-  musculoskeletal: PhysicalExamSection
-  skin: PhysicalExamSection
-  lymphatic: PhysicalExamSection
-  genitourinary: PhysicalExamSection
-  psychiatric: PhysicalExamSection
-  headAndNeck: PhysicalExamSection
-  eyes: PhysicalExamSection
-  earsNoseThroat: PhysicalExamSection
-  vitalSigns: PhysicalExamSection
-}
-
-interface PhysicalExamData {
-  [key: string]: {
-    [finding: string]: "normal" | "abnormal"
-  }
-}
 
 const extractFormElements = (content: any): any[] => {
   const elements: any[] = []
@@ -70,7 +45,6 @@ export default function CreateNotePage() {
   const [loading, setLoading] = useState(true)
   const [showPhysicalExamModal, setShowPhysicalExamModal] = useState(false)
   const [physicalExamConfig, setPhysicalExamConfig] = useState<PhysicalExamConfig | null>(null)
-  const [physicalExamData, setPhysicalExamData] = useState<PhysicalExamData>({})
   const [currentExamField, setCurrentExamField] = useState<string | null>(null)
 
   // Mock patient/admission IDs and user data - replace with actual values from context/props
@@ -233,46 +207,99 @@ export default function CreateNotePage() {
     setShowPhysicalExamModal(true)
   }
 
-  const handleSavePhysicalExam = () => {
+  const handleSavePhysicalExam = (mappedResults: Record<string, string>, unmappedResults: string[]) => {
     if (!currentExamField) return
-    const findings: string[] = []
-    Object.entries(physicalExamData).forEach(([section, data]) => {
-      Object.entries(data).forEach(([finding, status]) => {
-        findings.push(`${finding} (${status})`)
-      })
+
+    // Map of Section Label (from modal) to Predefined Data Field ID/Label fragment
+    const sectionToDataFieldMap: Record<string, string> = {
+      "Pulmonary": "physical_examination_pulmonary",
+      "Cardiovascular": "physical_examination_cardiovascular",
+      "Neurological": "physical_examination_neurological",
+      "Abdominal": "physical_examination_abdominal",
+      "Musculoskeletal": "physical_examination_musculoskeletal",
+      "Skin": "physical_examination_skin",
+      "Lymphatic": "physical_examination_lymphatic",
+      "Genitourinary": "physical_examination_genitourinary",
+      "Psychiatric": "physical_examination_psychiatric",
+      "Head and Neck": "physical_examination_head_and_neck",
+      "Eyes": "physical_examination_eyes",
+      "Ears, Nose, and Throat": "physical_examination_ears_nose_throat",
+      "Vital Signs": "physical_examination_vital_signs",
+    }
+
+    const sectionAliases: Record<string, string[]> = {
+      "Pulmonary": ["pulmonary", "respiratory", "rs", "chest", "lungs", "breathing", "respiratory system"],
+      "Cardiovascular": ["cardiovascular", "cardio", "cvs", "heart", "cardauc", "cardiovascular system", "circulatory"],
+      "Neurological": ["neurological", "neuro", "cns", "nervous system"],
+      "Abdominal": ["abdominal", "abdomen", "abd", "gi", "gastrointestinal"],
+      "Musculoskeletal": ["musculoskeletal", "msk", "skeletal", "muscle", "bones", "joints", "spine", "extremities"],
+      "Skin": ["skin", "integumentary", "derma"],
+      "Lymphatic": ["lymphatic", "lymph", "nodes"],
+      "Genitourinary": ["genitourinary", "gu", "genital", "urinary"],
+      "Psychiatric": ["psychiatric", "psych", "mental"],
+      "Head and Neck": ["head and neck", "head & neck", "heent", "neck", "head"],
+      "Eyes": ["eyes", "vision", "ophthalmic"],
+      "Ears, Nose, and Throat": ["ears, nose, and throat", "ent", "ears", "nose", "throat"],
+      "Vital Signs": ["vital signs", "vitals"],
+    }
+
+    // We need current form elements to find matches. 
+    // ShadCN implementation extracts elements when template is selected but doesn't seem to persist them in state clearly besides the initial extract.
+    // However, looking at the code, `extractFormElements` is called inside `handleTemplateSelect`.
+    // But we don't have `formElements` in state? 
+    // Ah, wait. Lines 104-126 extract elements to build initial data. 
+    // We need to re-extract or store them to do the matching. 
+    // Let's modify the component state to store formElements.
+
+    // Actually, simple fix: if we don't have them in state, we can re-extract from `selectedTemplate.templateContent`.
+    if (!selectedTemplate) return
+    const currentElements = extractFormElements(selectedTemplate.templateContent)
+
+    // Apply mapped results to matching fields
+    Object.entries(mappedResults).forEach(([sectionLabel, summary]) => {
+      // 1. Try to find by DataField ID first (most accurate)
+      const dataFieldId = sectionToDataFieldMap[sectionLabel];
+      let matchingElement = currentElements.find((el: any) => el.dataField === dataFieldId);
+
+      // 2. If not found, try robust label matching
+      if (!matchingElement) {
+        const normalizedSection = sectionLabel.toLowerCase().trim();
+        const aliases = (sectionAliases[sectionLabel] || [normalizedSection]).map(a => a.toLowerCase());
+        if (!aliases.includes(normalizedSection)) aliases.push(normalizedSection);
+
+        matchingElement = currentElements.find((el: any) => {
+          const elLabel = el.label.toLowerCase().replace(':', '').replace(/\./g, '').trim()
+          return aliases.some(alias =>
+            elLabel === alias ||
+            elLabel.split(/[\s/]+/).includes(alias) ||
+            (alias.length > 3 && elLabel.includes(alias))
+          )
+        })
+      }
+
+      if (matchingElement) {
+        handleDataChange(matchingElement.elementKey, summary)
+      } else {
+        // If matched field not found, treat as unmapped
+        unmappedResults.push(`${sectionLabel}: ${summary}`)
+      }
     })
-    const summary = findings.join(', ')
-    handleDataChange(currentExamField, summary)
+
+    if (unmappedResults.length > 0) {
+      const existing = formData[currentExamField] ? formData[currentExamField] + "; " : ""
+      handleDataChange(currentExamField, existing + unmappedResults.join('; '))
+    }
+
     setShowPhysicalExamModal(false)
-    setPhysicalExamData({})
     setCurrentExamField(null)
   }
 
-  const getActivePhysicalExams = () => {
-    if (!physicalExamConfig) return []
-    const examLabels: Record<string, string> = {
-      pulmonary: "Pulmonary",
-      cardiovascular: "Cardiovascular",
-      neurological: "Neurological",
-      abdominal: "Abdominal",
-      musculoskeletal: "Musculoskeletal",
-      skin: "Skin",
-      lymphatic: "Lymphatic",
-      genitourinary: "Genitourinary",
-      psychiatric: "Psychiatric",
-      headAndNeck: "Head and Neck",
-      eyes: "Eyes",
-      earsNoseThroat: "Ears, Nose, and Throat",
-      vitalSigns: "Vital Signs",
-    }
-    return Object.entries(physicalExamConfig)
-      .filter(([_, data]) => data.enabled)
-      .map(([key, data]) => ({
-        id: key,
-        label: examLabels[key] || key,
-        findings: data.findings,
-      }))
-  }
+  // Helper removed as it's now internal to the Modal component, 
+  // BUT we need to pass the config to the modal. 
+  // And we initialize the config in `handlePhysicalExamClick`.
+  // So we keep `physicalExamConfig` state.
+  // The helper `getActivePhysicalExams` was used for rendering the inline modal, so it is no longer needed here.
+
 
   const handleVersionRestore = (version: any) => {
     setFormData(version.consultationData || version.data)
@@ -337,88 +364,15 @@ export default function CreateNotePage() {
         />
       </div>
 
-      <Dialog open={showPhysicalExamModal} onOpenChange={setShowPhysicalExamModal}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-teal-700">Physical Examination</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            {physicalExamConfig && getActivePhysicalExams().length > 0 && (
-              <Card>
-                <CardContent className="pt-6">
-                  <p className="text-sm font-bold text-gray-700 mb-3">Select Findings</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    {getActivePhysicalExams().map((section) => (
-                      <div
-                        key={section.id}
-                        className="bg-white p-3 rounded-md border border-gray-200"
-                      >
-                        <p className="font-semibold text-xs text-teal-600 mb-2">
-                          {section.label}
-                        </p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {section.findings.map((finding: string) => {
-                            const status = physicalExamData[section.id]?.[finding]
-                            let bgColor = "bg-white"
-                            if (status === "normal") bgColor = "bg-green-50"
-                            else if (status === "abnormal") bgColor = "bg-red-50"
-                            return (
-                              <Button
-                                key={finding}
-                                size="sm"
-                                variant="outline"
-                                className={`text-xs px-2 min-w-[50px] ${bgColor} ${status === "normal" ? "border-green-500 text-green-700" :
-                                  status === "abnormal" ? "border-red-500 text-red-700" :
-                                    "border-gray-300"
-                                  }`}
-                                onClick={() => {
-                                  let newStatus: "normal" | "abnormal" | undefined
-                                  if (!status) newStatus = "normal"
-                                  else if (status === "normal") newStatus = "abnormal"
-                                  else newStatus = undefined
-                                  setPhysicalExamData(prev => ({
-                                    ...prev,
-                                    [section.id]: {
-                                      ...prev[section.id],
-                                      ...(newStatus ? { [finding]: newStatus } :
-                                        (() => {
-                                          const { [finding]: removed, ...rest } = prev[section.id] || {}
-                                          return rest
-                                        })()
-                                      ),
-                                    },
-                                  }))
-                                }}
-                              >
-                                {finding}
-                              </Button>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-          <DialogFooter>
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setShowPhysicalExamModal(false)
-                setPhysicalExamData({})
-                setCurrentExamField(null)
-              }}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleSavePhysicalExam}>
-              Apply Findings
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <PhysicalExaminationModal
+        isOpen={showPhysicalExamModal}
+        onClose={() => {
+          setShowPhysicalExamModal(false)
+          setCurrentExamField(null)
+        }}
+        onSave={handleSavePhysicalExam}
+        config={physicalExamConfig}
+      />
     </div>
   )
 }
