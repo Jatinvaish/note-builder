@@ -23,6 +23,15 @@ export const FormElementExtension = Node.create({
       group_id: { default: null },
       data_binding: { default: null },
       dataField: { default: "" },
+      showTimeOnly: { default: false },
+      useCurrentDateTime: { default: false },
+      minLength: { default: undefined },
+      maxLength: { default: undefined },
+      pattern: { default: "" },
+      min: { default: undefined },
+      max: { default: undefined },
+      step: { default: 1 },
+      validationMessage: { default: "" },
     }
   },
 

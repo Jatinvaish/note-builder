@@ -13,6 +13,15 @@ export interface FormElement {
   group_id?: string | null
   data_binding?: DataBinding | null
   dataField?: string
+  showTimeOnly?: boolean
+  minLength?: number
+  maxLength?: number
+  pattern?: string
+  min?: number
+  max?: number
+  step?: number
+  validationMessage?: string
+  useCurrentDateTime?: boolean
 }
 
 export interface DataBinding {

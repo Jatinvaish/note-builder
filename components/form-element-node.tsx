@@ -1,6 +1,7 @@
 "use client"
 import { NodeViewWrapper } from "@tiptap/react"
 import { Settings } from "lucide-react"
+import { PREDEFINED_DATA_FIELDS } from "@/lib/predefined-data-fields"
 
 interface FormElementNodeProps {
   node: any
@@ -19,10 +20,18 @@ const ELEMENT_COLORS: Record<string, { bg: string; border: string; text: string 
 }
 
 export function FormElementNode({ node }: FormElementNodeProps) {
-  const { elementType, label, elementKey, required, defaultValue } = node.attrs
+  const { elementType, label, elementKey, required, defaultValue, dataField, showTimeOnly } = node.attrs
   const colors = ELEMENT_COLORS[elementType] || ELEMENT_COLORS.input
 
   let displayValue = defaultValue || "[Empty]"
+
+  if (!defaultValue && dataField) {
+    const fieldConfig = PREDEFINED_DATA_FIELDS.find(f => f.id === dataField)
+    if (fieldConfig) {
+      displayValue = `${fieldConfig.label} (${fieldConfig.category})`
+    }
+  }
+
   let isSignature = false
 
   // Format datetime for display
@@ -30,14 +39,22 @@ export function FormElementNode({ node }: FormElementNodeProps) {
     try {
       const date = new Date(defaultValue)
       if (!isNaN(date.getTime())) {
-        const day = String(date.getDate()).padStart(2, '0')
-        const month = String(date.getMonth() + 1).padStart(2, '0')
-        const year = date.getFullYear()
-        let hours = date.getHours()
-        const minutes = String(date.getMinutes()).padStart(2, '0')
-        const ampm = hours >= 12 ? 'PM' : 'AM'
-        hours = hours % 12 || 12
-        displayValue = `${day}-${month}-${year} ${hours}:${minutes} ${ampm}`
+        if (showTimeOnly) {
+          let hours = date.getHours()
+          const minutes = String(date.getMinutes()).padStart(2, '0')
+          const ampm = hours >= 12 ? 'pm' : 'am'
+          hours = hours % 12 || 12
+          displayValue = `${hours}:${minutes}${ampm}`
+        } else {
+          const day = String(date.getDate()).padStart(2, '0')
+          const month = String(date.getMonth() + 1).padStart(2, '0')
+          const year = date.getFullYear()
+          let hours = date.getHours()
+          const minutes = String(date.getMinutes()).padStart(2, '0')
+          const ampm = hours >= 12 ? 'pm' : 'am'
+          hours = hours % 12 || 12
+          displayValue = `${day}-${month}-${year} ${hours}:${minutes}${ampm}`
+        }
       }
     } catch { }
   }

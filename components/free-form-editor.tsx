@@ -11,12 +11,16 @@ import { TextStyle } from "@tiptap/extension-text-style"
 import { Color } from "@tiptap/extension-color"
 import { Highlight } from "@tiptap/extension-highlight"
 import { FontFamily } from "@tiptap/extension-font-family"
-import {Table} from "@tiptap/extension-table"
+import { Table } from "@tiptap/extension-table"
 import TableRow from "@tiptap/extension-table-row"
 import TableCell from "@tiptap/extension-table-cell"
 import TableHeader from "@tiptap/extension-table-header"
 import { FormElementExtension } from "@/lib/tiptap-extensions"
 import { Extension } from "@tiptap/core"
+import { Suggestion } from "@tiptap/suggestion"
+import { ReactRenderer } from "@tiptap/react"
+import tippy from "tippy.js"
+import { SuggestionList } from "./suggestion-list"
 
 const FontSize = Extension.create({
   name: 'fontSize',
@@ -127,6 +131,24 @@ const ELEMENT_TYPES = [
   { id: "voice_to_text", label: "Voice to Text", icon: FileText },
 ]
 
+const SHORTCUT_MAP: Record<string, string> = {
+  "dat": "datetime",
+  "data": "datetime",
+  "da": "datetime",
+  "inp": "input",
+  "input": "input",
+  "chk": "checkbox",
+  "check": "checkbox",
+  "sel": "select",
+  "drop": "select",
+  "txt": "textarea",
+  "area": "textarea",
+  "sig": "signature",
+  "voice": "voice_to_text",
+  "num": "numeric",
+  "number": "numeric",
+}
+
 export function FreeFormEditor({
   template,
   onSave,
@@ -170,7 +192,7 @@ export function FreeFormEditor({
         },
       }),
       TextAlign.configure({ types: ["heading", "paragraph"] }),
-      Table.configure({ 
+      Table.configure({
         resizable: true,
         allowTableNodeSelection: true,
         cellMinWidth: 50,
@@ -233,7 +255,188 @@ export function FreeFormEditor({
         },
       }),
       FormElementExtension,
-    ],
+      Extension.create({
+        name: 'suggestionEx',
+        addProseMirrorPlugins() {
+          return [
+            Suggestion({
+              editor: this.editor,
+              char: '/',
+              allowSpaces: false,
+              items: ({ query }: { query: string }) => {
+                // Return all items if query is empty (triggered by Ctrl+Space)
+                const items = Object.entries(SHORTCUT_MAP)
+                  .filter(([key]) => query.length === 0 || key.startsWith(query.toLowerCase()))
+                  .map(([key, typeId]) => typeId)
+
+                return Array.from(new Set(items)).slice(0, 8)
+              },
+              render: () => {
+                let component: ReactRenderer<any>
+                let popup: any
+
+                return {
+                  onStart: (props: any) => {
+                    component = new ReactRenderer(SuggestionList, {
+                      props,
+                      editor: props.editor,
+                    })
+
+                    popup = tippy('body', {
+                      getReferenceClientRect: props.clientRect,
+                      appendTo: () => document.body,
+                      content: component.element,
+                      showOnCreate: true,
+                      interactive: true,
+                      trigger: 'manual',
+                      placement: 'bottom-start',
+                    })
+                  },
+                  onUpdate(props: any) {
+                    component.updateProps(props)
+
+                    if (!props.clientRect) {
+                      return
+                    }
+
+                    popup[0].setProps({
+                      getReferenceClientRect: props.clientRect,
+                    })
+                  },
+                  onKeyDown(props: any) {
+                    if (props.event.key === 'Escape') {
+                      popup[0].hide()
+                      return true
+                    }
+                    return component.ref?.onKeyDown(props)
+                  },
+                  onExit() {
+                    popup[0].destroy()
+                    component.destroy()
+                  },
+                }
+              },
+              command: ({ editor, range, props }: any) => {
+                const typeId = props.id
+                const elementType = ELEMENT_TYPES.find(e => e.id === typeId) || { label: "Element" }
+                const elementKey = `${typeId}_${Date.now()}`
+
+                editor
+                  .chain()
+                  .focus()
+                  .deleteRange(range)
+                  .insertContent({
+                    type: "formElement",
+                    attrs: {
+                      elementType: typeId,
+                      label: elementType.label,
+                      elementKey: elementKey,
+                      defaultValue: "",
+                      required: false,
+                      options: typeId === 'select' || typeId === 'multiselect' ? { values: [] } : null,
+                    },
+                  })
+                  // Select inserted node
+                  .command(({ dispatch }: any) => {
+                    if (dispatch) {
+                      const pos = range.from
+                      try {
+                        (editor as any).commands.setNodeSelection(pos);
+                        return true;
+                      } catch (e) {
+                        console.error("Failed to set node selection", e);
+                        return false;
+                      }
+                    }
+                    return false
+                  })
+                  .run()
+              },
+            }),
+          ]
+        },
+      }),
+      Extension.create({
+        name: 'keyboardShortcuts',
+        addKeyboardShortcuts() {
+          return {
+            Tab: () => {
+              const { state, dispatch } = this.editor.view
+              const { selection } = state
+              const { from } = selection
+
+              // Check for smart shortcuts
+              // Look back up to 10 chars to cover longest keys
+              const textBefore = state.doc.textBetween(Math.max(0, from - 10), from).toLowerCase()
+
+              // Find matching suffix
+              const match = Object.entries(SHORTCUT_MAP).find(([key]) => {
+                if (!textBefore.endsWith(key)) return false;
+                // Check boundary: previous char must be space, newline, or start of doc
+                const charBeforeKey = state.doc.textBetween(Math.max(0, from - key.length - 1), from - key.length)
+                return !charBeforeKey || charBeforeKey === ' ' || charBeforeKey === '\n' || charBeforeKey === '\u00A0';
+              });
+
+              if (match) {
+                const [key, typeId] = match
+                const elementType = ELEMENT_TYPES.find(e => e.id === typeId) || { label: "Element" }
+
+                const elementKey = `${typeId}_${Date.now()}`
+
+                // We need to execute the chain
+                this.editor.chain()
+                  .deleteRange({ from: from - key.length, to: from })
+                  .insertContent({
+                    type: "formElement",
+                    attrs: {
+                      elementType: typeId,
+                      label: elementType.label,
+                      elementKey: elementKey,
+                      defaultValue: "",
+                      required: false,
+                      // specific defaults
+                      options: typeId === 'select' || typeId === 'multiselect' ? { values: [] } : null,
+                    },
+                  })
+                  // Select the inserted node
+                  // The inserted node starts at (from - key.length)
+                  .command(({ dispatch }) => {
+                    if (dispatch) {
+                      const pos = from - key.length;
+                      try {
+                        (this.editor as any).commands.setNodeSelection(pos);
+                        return true;
+                      } catch (e) {
+                        console.error("Failed to set node selection", e);
+                        return false;
+                      }
+                    }
+                    return false
+                  })
+                  .run()
+                return true
+              }
+
+              // Default Tab behavior (Indentation)
+              if (this.editor.isActive('listItem')) {
+                return false // Let list sink
+              }
+              if (this.editor.isActive('table')) {
+                return false // Let table cell navigation work
+              }
+
+              this.editor.commands.insertContent('\u00A0\u00A0\u00A0\u00A0') // 4 non-breaking spaces
+              return true
+            },
+            'Mod-Space': () => {
+              // Triggering suggestion list manually
+              this.editor.commands.insertContent('/')
+              return true
+            },
+          }
+        },
+      }),
+    ] as any[],
     content: template?.templateContent || "<p>Start writing your template...</p>",
     editorProps: {
       attributes: {
@@ -261,7 +464,7 @@ export function FreeFormEditor({
         })
       }
     },
-  })
+  } as any)
 
   useEffect(() => {
     return () => {
@@ -274,6 +477,30 @@ export function FreeFormEditor({
       onEditorReady(editor)
     }
   }, [editor, onEditorReady])
+
+  useEffect(() => {
+    if (!editor) return
+
+    const handleSelectionUpdate = () => {
+      const { selection } = editor.state
+      const node = (selection as any).node
+      if (node && node.type.name === 'formElement') {
+        const elementKey = node.attrs.elementKey
+        if (elementKey && onElementSelected) {
+          onElementSelected(elementKey)
+        }
+      } else {
+        if (onElementSelected) {
+          onElementSelected(null)
+        }
+      }
+    }
+
+    editor.on('selectionUpdate', handleSelectionUpdate)
+    return () => {
+      editor.off('selectionUpdate', handleSelectionUpdate)
+    }
+  }, [editor, onElementSelected])
 
   const insertElement = (elementType: string) => {
     if (!editor) return
@@ -324,8 +551,8 @@ export function FreeFormEditor({
           {/* Undo/Redo */}
           <div className="flex gap-1 border-r pr-2">
             <Button
-              onClick={() => editor?.chain().focus().undo().run()}
-              disabled={!editor?.can().undo()}
+              onClick={() => (editor as any)?.chain().focus().undo().run()}
+              disabled={!(editor as any)?.can().undo()}
               variant="ghost"
               size="sm"
               className="h-8 w-8 p-0"
@@ -334,8 +561,8 @@ export function FreeFormEditor({
               <Undo className="w-4 h-4" />
             </Button>
             <Button
-              onClick={() => editor?.chain().focus().redo().run()}
-              disabled={!editor?.can().redo()}
+              onClick={() => (editor as any)?.chain().focus().redo().run()}
+              disabled={!(editor as any)?.can().redo()}
               variant="ghost"
               size="sm"
               className="h-8 w-8 p-0"
@@ -374,8 +601,8 @@ export function FreeFormEditor({
           {/* Text Formatting */}
           <div className="flex gap-1 border-l pl-2">
             <Button
-              onClick={() => editor?.chain().focus().toggleBold().run()}
-              variant={editor?.isActive("bold") ? "default" : "ghost"}
+              onClick={() => (editor as any)?.chain().focus().toggleBold().run()}
+              variant={(editor as any)?.isActive("bold") ? "default" : "ghost"}
               size="sm"
               className="h-8 w-8 p-0 font-bold"
               title="Bold (Ctrl+B)"
@@ -383,8 +610,8 @@ export function FreeFormEditor({
               B
             </Button>
             <Button
-              onClick={() => editor?.chain().focus().toggleItalic().run()}
-              variant={editor?.isActive("italic") ? "default" : "ghost"}
+              onClick={() => (editor as any)?.chain().focus().toggleItalic().run()}
+              variant={(editor as any)?.isActive("italic") ? "default" : "ghost"}
               size="sm"
               className="h-8 w-8 p-0 italic"
               title="Italic (Ctrl+I)"
@@ -392,8 +619,8 @@ export function FreeFormEditor({
               I
             </Button>
             <Button
-              onClick={() => editor?.chain().focus().toggleUnderline().run()}
-              variant={editor?.isActive("underline") ? "default" : "ghost"}
+              onClick={() => (editor as any)?.chain().focus().toggleUnderline().run()}
+              variant={(editor as any)?.isActive("underline") ? "default" : "ghost"}
               size="sm"
               className="h-8 w-8 p-0 underline"
               title="Underline (Ctrl+U)"
@@ -472,19 +699,19 @@ export function FreeFormEditor({
                   Normal
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}
+                  onClick={() => (editor as any)?.chain().focus().toggleHeading({ level: 1 }).run()}
                   className="text-xs"
                 >
                   Heading 1
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
+                  onClick={() => (editor as any)?.chain().focus().toggleHeading({ level: 2 }).run()}
                   className="text-xs"
                 >
                   Heading 2
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}
+                  onClick={() => (editor as any)?.chain().focus().toggleHeading({ level: 3 }).run()}
                   className="text-xs"
                 >
                   Heading 3
@@ -527,8 +754,8 @@ export function FreeFormEditor({
           {/* Lists */}
           <div className="flex gap-1 border-l pl-2">
             <Button
-              onClick={() => editor?.chain().focus().toggleBulletList().run()}
-              variant={editor?.isActive("bulletList") ? "default" : "ghost"}
+              onClick={() => (editor as any)?.chain().focus().toggleBulletList().run()}
+              variant={(editor as any)?.isActive("bulletList") ? "default" : "ghost"}
               size="sm"
               className="h-8 w-8 p-0"
               title="Bullet List"
@@ -536,8 +763,8 @@ export function FreeFormEditor({
               <List className="w-4 h-4" />
             </Button>
             <Button
-              onClick={() => editor?.chain().focus().toggleOrderedList().run()}
-              variant={editor?.isActive("orderedList") ? "default" : "ghost"}
+              onClick={() => (editor as any)?.chain().focus().toggleOrderedList().run()}
+              variant={(editor as any)?.isActive("orderedList") ? "default" : "ghost"}
               size="sm"
               className="h-8 w-8 p-0"
               title="Numbered List"

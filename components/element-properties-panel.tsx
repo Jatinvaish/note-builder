@@ -15,10 +15,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Trash2, Check, ChevronsUpDown } from "lucide-react"
+import { Trash2, Check, Search, Database } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Textarea } from "@/components/ui/textarea"
 
 interface ElementPropertiesPanelProps {
   elementId: string
@@ -34,7 +33,8 @@ export function ElementPropertiesPanel({
   onUpdate,
 }: ElementPropertiesPanelProps) {
   const [element, setElement] = useState<any>(null)
-  const [open, setOpen] = useState(false)
+  const [selectedCategory, setSelectedCategory] = useState<string>("")
+  const [searchTerm, setSearchTerm] = useState<string>("")
 
   useEffect(() => {
     const traverse = (nodes: any[]): any => {
@@ -52,6 +52,11 @@ export function ElementPropertiesPanel({
 
     const found = traverse(templateContent?.content || [])
     setElement(found)
+
+    if (found?.attrs?.dataField) {
+      const field = PREDEFINED_DATA_FIELDS.find(f => f.id === found.attrs.dataField)
+      if (field && !selectedCategory) setSelectedCategory(field.category)
+    }
   }, [elementId, templateContent])
 
   const handleUpdate = useCallback((key: string, value: any) => {
@@ -62,9 +67,9 @@ export function ElementPropertiesPanel({
         [key]: value,
       },
     }
-    
+
     setElement(updated)
-    
+
     // Defer the parent update to avoid setState during render
     setTimeout(() => {
       const newContent = updateElementInContent(templateContent, elementId, updated)
@@ -86,7 +91,15 @@ export function ElementPropertiesPanel({
   }
 
   const attrs = element.attrs || {}
-  const hasDropdownValidation = attrs.elementType === "select" && (!attrs.options?.values || attrs.options.values.length === 0) && !attrs.dataField
+  const categories = Array.from(new Set(PREDEFINED_DATA_FIELDS.map(f => f.category)))
+
+  const filteredFields = PREDEFINED_DATA_FIELDS.filter(f => {
+    const matchesCategory = !selectedCategory || f.category === selectedCategory
+    const matchesSearch = !searchTerm ||
+      f.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      f.id.toLowerCase().includes(searchTerm.toLowerCase())
+    return matchesCategory && matchesSearch
+  })
 
   return (
     <div className="space-y-4">
@@ -94,11 +107,12 @@ export function ElementPropertiesPanel({
         <h3 className="text-sm font-semibold">Element Properties</h3>
         <Button
           size="sm"
-          variant="destructive"
+          variant="ghost"
           onClick={handleDelete}
-          className="h-6 text-xs"
+          className="h-6 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
         >
-          <Trash2 className="w-3 h-3" />
+          <Trash2 className="w-3 h-3 mr-1" />
+          Delete
         </Button>
       </div>
 
@@ -108,36 +122,28 @@ export function ElementPropertiesPanel({
           <TabsTrigger value="databinding" className="text-xs">Data Binding</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="properties" className="space-y-3">
-          <div className="space-y-1">
-            <Label htmlFor="label" className="text-xs font-medium">Label *</Label>
+        <TabsContent value="properties" className="space-y-4 py-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="label" className="text-xs font-bold">Label *</Label>
             <Input
               id="label"
               key={`label-${elementId}`}
               defaultValue={attrs.label || ""}
               onBlur={(e) => handleUpdate("label", e.target.value)}
               placeholder="Field label"
-              className="h-7 text-xs"
+              className="h-8 text-xs"
             />
           </div>
 
-          {/* COMMENTED: Element Key
-          <div className="space-y-1">
-            <Label htmlFor="elementKey" className="text-xs font-medium">Element Key</Label>
-            <Input id="elementKey" value={attrs.elementKey || ""} disabled className="h-7 text-xs bg-muted" />
-          </div>
-          */}
-
-          <div className="space-y-1">
-            <Label htmlFor="type" className="text-xs font-medium">Type</Label>
-            <Select value={attrs.elementType || "input"}>
-              <SelectTrigger id="type" className="h-7 text-xs"><SelectValue /></SelectTrigger>
+          <div className="space-y-1.5">
+            <Label htmlFor="type" className="text-xs font-bold">Type</Label>
+            <Select value={attrs.elementType || "input"} disabled>
+              <SelectTrigger id="type" className="h-8 text-xs bg-muted/30"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="input">Text Input</SelectItem>
                 <SelectItem value="numeric">Numeric</SelectItem>
                 <SelectItem value="checkbox">Checkbox</SelectItem>
                 <SelectItem value="select">Dropdown</SelectItem>
-                <SelectItem value="multiselect">Multi-Select</SelectItem>
                 <SelectItem value="textarea">Text Area</SelectItem>
                 <SelectItem value="datetime">Date/Time</SelectItem>
                 <SelectItem value="signature">Signature</SelectItem>
@@ -146,10 +152,67 @@ export function ElementPropertiesPanel({
             </Select>
           </div>
 
-          <div className="space-y-1">
-            <Label htmlFor="group" className="text-xs font-medium">Group</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="defaultValue" className="text-xs font-bold">Default Value</Label>
+            {attrs.elementType === "datetime" ? (
+              <div className="space-y-2">
+                <Input
+                  id="defaultValue"
+                  type="datetime-local"
+                  key={`defaultValue-${elementId}`}
+                  defaultValue={attrs.defaultValue || ""}
+                  onBlur={(e) => handleUpdate("defaultValue", e.target.value)}
+                  className="h-8 text-xs"
+                />
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="useCurrentDateTime"
+                    checked={attrs.useCurrentDateTime || false}
+                    onCheckedChange={(checked) => handleUpdate("useCurrentDateTime", checked)}
+                  />
+                  <Label htmlFor="useCurrentDateTime" className="text-[10px] cursor-pointer">Use Current Date/Time</Label>
+                </div>
+              </div>
+            ) : (
+              <Input
+                id="defaultValue"
+                key={`defaultValue-${elementId}`}
+                defaultValue={attrs.defaultValue || ""}
+                onBlur={(e) => handleUpdate("defaultValue", e.target.value)}
+                placeholder="Set default value"
+                className="h-8 text-xs"
+              />
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="placeholder" className="text-xs font-bold">Placeholder</Label>
+            <Input
+              id="placeholder"
+              key={`placeholder-${elementId}`}
+              defaultValue={attrs.placeholder || ""}
+              onBlur={(e) => handleUpdate("placeholder", e.target.value)}
+              placeholder="Field placeholder"
+              className="h-8 text-xs"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="helpText" className="text-xs font-bold">Help Text</Label>
+            <Input
+              id="helpText"
+              key={`helpText-${elementId}`}
+              defaultValue={attrs.helpText || ""}
+              onBlur={(e) => handleUpdate("helpText", e.target.value)}
+              placeholder="Help text for the user"
+              className="h-8 text-xs"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="group" className="text-xs font-bold">Group</Label>
             <Select value={attrs.group_id || "noGroup"} onValueChange={(val) => handleUpdate("group_id", val === "noGroup" ? null : val)}>
-              <SelectTrigger id="group" className="h-7 text-xs"><SelectValue placeholder="No group" /></SelectTrigger>
+              <SelectTrigger id="group" className="h-8 text-xs"><SelectValue placeholder="No group" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="noGroup">No Group</SelectItem>
                 {groups.map((group) => (<SelectItem key={group.id} value={group.id}>{group.group_name}</SelectItem>))}
@@ -158,287 +221,221 @@ export function ElementPropertiesPanel({
           </div>
 
           <div className="flex items-center gap-2">
-            <Checkbox id="required" checked={attrs.required || false} onCheckedChange={(checked) => handleUpdate("required", checked)} />
-            <Label htmlFor="required" className="text-xs font-medium cursor-pointer">Required</Label>
+            <Checkbox
+              id="required"
+              checked={attrs.required || false}
+              onCheckedChange={(checked) => handleUpdate("required", checked)}
+            />
+            <Label htmlFor="required" className="text-xs font-medium cursor-pointer">Mark as Required</Label>
           </div>
 
-          {/* Smart Default Value based on element type */}
-          {attrs.elementType === "datetime" ? (
-            <div className="space-y-1">
-              <Label htmlFor="defaultDatetime" className="text-xs font-medium">Default Date/Time</Label>
-              <Select value={attrs.defaultDatetime || "none"} onValueChange={(val) => handleUpdate("defaultDatetime", val)}>
-                <SelectTrigger id="defaultDatetime" className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  <SelectItem value="now">Current Date/Time</SelectItem>
-                  <SelectItem value="today">Today (00:00)</SelectItem>
-                  <SelectItem value="custom">Custom Value</SelectItem>
-                </SelectContent>
-              </Select>
-              {attrs.defaultDatetime === "custom" && (
-                <Input
-                  type="datetime-local"
-                  key={`defaultValue-${elementId}`}
-                  defaultValue={attrs.defaultValue || ""}
-                  onBlur={(e) => handleUpdate("defaultValue", e.target.value)}
-                  className="h-7 text-xs mt-2"
-                />
-              )}
-            </div>
-          ) : attrs.elementType === "checkbox" ? (
-            <div className="space-y-1">
-              <Label htmlFor="defaultChecked" className="text-xs font-medium">Default State</Label>
-              <Select value={attrs.defaultValue === true || attrs.defaultValue === "true" ? "checked" : "unchecked"} onValueChange={(val) => handleUpdate("defaultValue", val === "checked")}>
-                <SelectTrigger id="defaultChecked" className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="unchecked">Unchecked</SelectItem>
-                  <SelectItem value="checked">Checked</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          ) : attrs.elementType === "select" ? (
-            <div className="space-y-1">
-              <Label htmlFor="defaultSelect" className="text-xs font-medium">Default Selection</Label>
-              <Select value={attrs.defaultValue || "__none__"} onValueChange={(val) => handleUpdate("defaultValue", val === "__none__" ? "" : val)}>
-                <SelectTrigger id="defaultSelect" className="h-7 text-xs"><SelectValue placeholder="Select default..." /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">None</SelectItem>
-                  {(attrs.options?.values || []).map((opt: string) => (
-                    <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          ) : (
-            <div className="space-y-1">
-              <Label htmlFor="default" className="text-xs font-medium">Default Value</Label>
-              <Input
-                id="default"
-                type={attrs.elementType === "numeric" ? "number" : "text"}
-                key={`default-${elementId}`}
-                defaultValue={attrs.defaultValue || ""}
-                onBlur={(e) => handleUpdate("defaultValue", e.target.value)}
-                placeholder="Default value"
-                className="h-7 text-xs"
+          {attrs.elementType === "datetime" && (
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="showTimeOnly"
+                checked={attrs.showTimeOnly || false}
+                onCheckedChange={(checked) => handleUpdate("showTimeOnly", checked)}
               />
+              <Label htmlFor="showTimeOnly" className="text-xs font-medium cursor-pointer text-orange-700">Show Time Only</Label>
             </div>
           )}
-
-          {/* COMMENTED: Placeholder
-          <div className="space-y-1">
-            <Label htmlFor="placeholder" className="text-xs font-medium">Placeholder</Label>
-            <Input id="placeholder" key={`placeholder-${elementId}`} defaultValue={attrs.placeholder || ""} onBlur={(e) => handleUpdate("placeholder", e.target.value)} placeholder="Placeholder text" className="h-7 text-xs" />
-          </div>
-          */}
-
-          {/* COMMENTED: Help Text
-          <div className="space-y-1">
-            <Label htmlFor="helpText" className="text-xs font-medium">Help Text</Label>
-            <Input id="helpText" key={`helpText-${elementId}`} defaultValue={attrs.helpText || ""} onBlur={(e) => handleUpdate("helpText", e.target.value)} placeholder="Help text for users" className="h-7 text-xs" />
-          </div>
-          */}
 
           {attrs.elementType === "select" && (
-            <div className="space-y-2 p-3 border rounded bg-muted/30">
-              <Label className="text-xs font-medium">Dropdown Options *</Label>
-              <p className="text-xs text-muted-foreground">Either add options OR select a data field (required)</p>
-              <div className="space-y-1">
-                <Label htmlFor="options" className="text-xs">Options (comma-separated)</Label>
-                <Input
-                  id="options"
-                  key={`options-${elementId}`}
-                  defaultValue={attrs.options?.values?.join(", ") || ""}
-                  onBlur={(e) => handleUpdate("options", { source: "static", values: e.target.value.split(",").map((v) => v.trim()).filter(Boolean) })}
-                  placeholder="Option 1, Option 2, Option 3"
-                  className="h-7 text-xs"
-                />
-              </div>
-              {hasDropdownValidation && <p className="text-xs text-destructive">⚠️ Add options or select a data field</p>}
-            </div>
-          )}
-
-          {attrs.elementType === "multiselect" && (
-            <div className="space-y-2 p-3 border rounded bg-muted/30">
-              <Label className="text-xs font-medium">Multi-Select Options *</Label>
-              <p className="text-xs text-muted-foreground">Either add options OR select a data field (required)</p>
-              <div className="space-y-1">
-                <Label htmlFor="multiselect-options" className="text-xs">Options (comma-separated)</Label>
-                <Input
-                  id="multiselect-options"
-                  key={`multiselect-options-${elementId}`}
-                  defaultValue={attrs.options?.values?.join(", ") || ""}
-                  onBlur={(e) => handleUpdate("options", { source: "static", values: e.target.value.split(",").map((v) => v.trim()).filter(Boolean) })}
-                  placeholder="Option 1, Option 2, Option 3"
-                  className="h-7 text-xs"
-                />
-              </div>
-              {attrs.elementType === "multiselect" && (!attrs.options?.values || attrs.options.values.length === 0) && !attrs.dataField && (
-                <p className="text-xs text-destructive">⚠️ Add options or select a data field</p>
-              )}
+            <div className="space-y-2 p-3 border rounded-md bg-blue-50/50 border-blue-100">
+              <Label className="text-xs font-bold text-blue-800">Dropdown Options</Label>
+              <p className="text-[10px] text-blue-600 mb-2">Comma-separated static options</p>
+              <Textarea
+                key={`options-${elementId}`}
+                defaultValue={attrs.options?.values?.join(", ") || ""}
+                onBlur={(e) => handleUpdate("options", { source: "static", values: e.target.value.split(",").map((v) => v.trim()).filter(Boolean) })}
+                placeholder="Option 1, Option 2..."
+                className="text-xs min-h-[60px] bg-white"
+              />
             </div>
           )}
 
           {/* Validation Properties */}
           {(attrs.elementType === "input" || attrs.elementType === "numeric" || attrs.elementType === "textarea") && (
-            <div className="space-y-2 p-3 border rounded bg-muted/30">
-              <Label className="text-xs font-semibold">Validation</Label>
-              
+            <div className="p-3 border rounded-md bg-muted/10 space-y-3">
+              <Label className="text-xs font-bold">Validation</Label>
+
               {(attrs.elementType === "input" || attrs.elementType === "textarea") && (
-                <>
-                  <div className="space-y-1">
-                    <Label htmlFor="minLength" className="text-xs">Min Length</Label>
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-medium">Min Length</Label>
                     <Input
-                      id="minLength"
                       type="number"
                       key={`minLength-${elementId}`}
                       defaultValue={attrs.minLength || ""}
                       onBlur={(e) => handleUpdate("minLength", e.target.value ? Number(e.target.value) : undefined)}
                       placeholder="Minimum length"
-                      className="h-7 text-xs"
+                      className="h-7 text-[10px]"
                     />
                   </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="maxLength" className="text-xs">Max Length</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-medium">Max Length</Label>
                     <Input
-                      id="maxLength"
                       type="number"
                       key={`maxLength-${elementId}`}
                       defaultValue={attrs.maxLength || ""}
                       onBlur={(e) => handleUpdate("maxLength", e.target.value ? Number(e.target.value) : undefined)}
                       placeholder="Maximum length"
-                      className="h-7 text-xs"
+                      className="h-7 text-[10px]"
                     />
                   </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="pattern" className="text-xs">Pattern (Regex)</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-medium">Pattern (Regex)</Label>
                     <Input
-                      id="pattern"
                       key={`pattern-${elementId}`}
                       defaultValue={attrs.pattern || ""}
                       onBlur={(e) => handleUpdate("pattern", e.target.value)}
                       placeholder="^[A-Za-z]+$"
-                      className="h-7 text-xs"
+                      className="h-7 text-[10px]"
                     />
                   </div>
-                </>
+                </div>
               )}
-              
+
               {attrs.elementType === "numeric" && (
-                <>
-                  <div className="space-y-1">
-                    <Label htmlFor="min" className="text-xs">Min Value</Label>
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-medium">Min Value</Label>
                     <Input
-                      id="min"
                       type="number"
                       key={`min-${elementId}`}
                       defaultValue={attrs.min || ""}
                       onBlur={(e) => handleUpdate("min", e.target.value ? Number(e.target.value) : undefined)}
                       placeholder="Minimum value"
-                      className="h-7 text-xs"
+                      className="h-7 text-[10px]"
                     />
                   </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="max" className="text-xs">Max Value</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-medium">Max Value</Label>
                     <Input
-                      id="max"
                       type="number"
                       key={`max-${elementId}`}
                       defaultValue={attrs.max || ""}
                       onBlur={(e) => handleUpdate("max", e.target.value ? Number(e.target.value) : undefined)}
                       placeholder="Maximum value"
-                      className="h-7 text-xs"
+                      className="h-7 text-[10px]"
                     />
                   </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="step" className="text-xs">Step</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-medium">Step</Label>
                     <Input
-                      id="step"
                       type="number"
                       key={`step-${elementId}`}
                       defaultValue={attrs.step || 1}
                       onBlur={(e) => handleUpdate("step", e.target.value ? Number(e.target.value) : 1)}
                       placeholder="Step value"
-                      className="h-7 text-xs"
+                      className="h-7 text-[10px]"
                     />
                   </div>
-                </>
+                </div>
               )}
-              
-              <div className="space-y-1">
-                <Label htmlFor="validationMessage" className="text-xs">Custom Validation Message</Label>
+
+              <div className="space-y-1.5 pt-1">
+                <Label className="text-[10px] font-medium">Custom Validation Message</Label>
                 <Input
-                  id="validationMessage"
                   key={`validationMessage-${elementId}`}
                   defaultValue={attrs.validationMessage || ""}
                   onBlur={(e) => handleUpdate("validationMessage", e.target.value)}
                   placeholder="Error message"
-                  className="h-7 text-xs"
+                  className="h-7 text-[10px]"
                 />
               </div>
             </div>
           )}
         </TabsContent>
 
-        <TabsContent value="databinding" className="space-y-3">
-          <p className="text-xs text-muted-foreground mb-2">Configure data binding for this field</p>
-          
+        <TabsContent value="databinding" className="space-y-5 py-4">
           <div className="space-y-2">
-            <Label className="text-xs font-medium">Clinical Data Field</Label>
-            <Popover open={open} onOpenChange={setOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={open}
-                  className="w-full justify-between h-8 text-xs font-normal"
-                >
-                  {attrs.dataField
-                    ? PREDEFINED_DATA_FIELDS.find((field) => field.id === attrs.dataField)?.label
-                    : "Select field..."}
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[300px] p-0">
-                <Command>
-                  <CommandInput placeholder="Search field..." className="h-8 text-xs" />
-                  <CommandList>
-                    <CommandEmpty className="text-xs py-2 text-center">No field found.</CommandEmpty>
-                    <CommandGroup>
-                      {PREDEFINED_DATA_FIELDS.map((field) => (
-                        <CommandItem
-                          key={field.id}
-                          value={field.id}
-                          onSelect={(currentValue) => {
-                            handleUpdate("dataField", currentValue === attrs.dataField ? "" : currentValue)
-                            setOpen(false)
-                          }}
-                          className="text-xs"
-                        >
-                          <Check
-                            className={cn(
-                              "mr-2 h-3 w-3",
-                              attrs.dataField === field.id ? "opacity-100" : "opacity-0"
-                            )}
-                          />
-                          {field.label}
-                          <span className="ml-auto text-muted-foreground text-[10px]">({field.category})</span>
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-            {attrs.dataField && <p className="text-xs text-muted-foreground mt-2 p-2 bg-muted rounded">Field ID: <code className="font-mono">{attrs.dataField}</code></p>}
+            <Label className="text-xs font-bold flex items-center gap-1.5">
+              <Search className="w-3 h-3" />
+              1. Search Fields
+            </Label>
+            <div className="relative">
+              <Input
+                placeholder="Filter by name or ID..."
+                className="h-8 text-xs bg-muted/20"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
           </div>
 
-          <div className="space-y-1">
-            <Label className="text-xs font-medium">Binding Type</Label>
+          <div className="space-y-2">
+            <Label className="text-xs font-bold">2. Filter Category</Label>
+            <div className="flex flex-wrap gap-1.5">
+              <Button
+                variant={selectedCategory === "" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSelectedCategory("")}
+                className="h-6 text-[10px] rounded-full px-3"
+              >
+                All
+              </Button>
+              {categories.map(cat => (
+                <Button
+                  key={cat}
+                  variant={selectedCategory === cat ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedCategory(cat)}
+                  className="h-6 text-[10px] rounded-full px-3"
+                >
+                  {cat}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-xs font-bold">3. Select Field (Click to Bind)</Label>
+            <div className="border rounded-md p-2 bg-muted/10 min-h-[120px] max-h-[300px] overflow-y-auto flex flex-wrap gap-1.5 content-start">
+              {filteredFields.length > 0 ? (
+                filteredFields.map(field => (
+                  <Button
+                    key={field.id}
+                    variant={attrs.dataField === field.id ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => handleUpdate("dataField", field.id === attrs.dataField ? "" : field.id)}
+                    className={cn(
+                      "h-7 text-[10px] font-normal transition-all",
+                      attrs.dataField === field.id ? "bg-green-600 hover:bg-green-700 text-white" : "hover:bg-muted"
+                    )}
+                  >
+                    {field.label}
+                  </Button>
+                ))
+              ) : (
+                <div className="w-full py-10 text-center">
+                  <p className="text-xs text-muted-foreground">No matches found</p>
+                  <Button variant="link" size="sm" onClick={() => { setSearchTerm(""); setSelectedCategory(""); }}>Reset</Button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {attrs.dataField && (
+            <div className="p-3 bg-green-50 rounded-md border border-green-100 flex items-start gap-3">
+              <Database className="w-4 h-4 text-green-600 mt-0.5" />
+              <div>
+                <p className="text-xs font-bold text-green-800">Linked to:</p>
+                <p className="text-[11px] text-green-700">
+                  {PREDEFINED_DATA_FIELDS.find(f => f.id === attrs.dataField)?.label}
+                </p>
+                <code className="text-[10px] text-green-600">ID: {attrs.dataField}</code>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <Label className="text-xs font-bold">Binding Type</Label>
             <Select value={attrs.data_binding?.type || "manual"} onValueChange={(val) => handleUpdate("data_binding", { ...(attrs.data_binding || {}), type: val })}>
-              <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="manual">Manual</SelectItem>
-                <SelectItem value="api">API</SelectItem>
+                <SelectItem value="manual" className="text-xs">Manual Entry</SelectItem>
+                <SelectItem value="api" className="text-xs">Auto-fill (API)</SelectItem>
               </SelectContent>
             </Select>
           </div>

@@ -17,6 +17,10 @@ import TableCell from "@tiptap/extension-table-cell"
 import TableHeader from "@tiptap/extension-table-header"
 import { FormElementExtension } from "@/lib/tiptap-extensions"
 import { Extension } from "@tiptap/core"
+import { Suggestion } from "@tiptap/suggestion"
+import { ReactRenderer } from "@tiptap/react"
+import tippy from "tippy.js"
+import { SuggestionList } from "./suggestion-list"
 
 const FontSize = Extension.create({
   name: 'fontSize',
@@ -64,6 +68,35 @@ import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { Download, Clock, Mic, MicOff } from "lucide-react"
 import { PREDEFINED_DATA_FIELDS } from "@/lib/predefined-data-fields"
+
+const SHORTCUT_MAP: Record<string, string> = {
+  "dat": "datetime",
+  "data": "datetime",
+  "da": "datetime",
+  "inp": "input",
+  "input": "input",
+  "chk": "checkbox",
+  "check": "checkbox",
+  "sel": "select",
+  "drop": "select",
+  "txt": "textarea",
+  "area": "textarea",
+  "sig": "signature",
+  "voice": "voice_to_text",
+  "num": "numeric",
+  "number": "numeric",
+}
+
+const ELEMENT_TYPES = [
+  { id: "input", label: "Text Input" },
+  { id: "checkbox", label: "Checkbox" },
+  { id: "select", label: "Dropdown" },
+  { id: "textarea", label: "Text Area" },
+  { id: "datetime", label: "Date/Time" },
+  { id: "signature", label: "Signature" },
+  { id: "voice_to_text", label: "Voice to Text" },
+  { id: "numeric", label: "Numeric Input" },
+]
 
 interface NoteEditorProps {
   templates: any[]
@@ -115,7 +148,115 @@ export function NoteEditor({
       TableHeader,
       TableCell,
       FormElementExtension,
-    ],
+      Extension.create({
+        name: 'suggestionEx',
+        addProseMirrorPlugins() {
+          return [
+            Suggestion({
+              editor: this.editor,
+              char: '/',
+              allowSpaces: false,
+              items: ({ query }: { query: string }) => {
+                const items = Object.entries(SHORTCUT_MAP)
+                  .filter(([key]) => query.length === 0 || key.startsWith(query.toLowerCase()))
+                  .map(([key, typeId]) => typeId)
+                return Array.from(new Set(items)).slice(0, 8)
+              },
+              render: () => {
+                let component: ReactRenderer<any>
+                let popup: any
+
+                return {
+                  onStart: (props: any) => {
+                    component = new ReactRenderer(SuggestionList, {
+                      props,
+                      editor: props.editor,
+                    })
+
+                    if (!props.clientRect) return
+
+                    popup = tippy('body', {
+                      getReferenceClientRect: props.clientRect,
+                      appendTo: () => document.body,
+                      content: component.element,
+                      showOnCreate: true,
+                      interactive: true,
+                      trigger: 'manual',
+                      placement: 'bottom-start',
+                    })
+                  },
+                  onUpdate(props: any) {
+                    component.updateProps(props)
+                    if (!props.clientRect) return
+                    popup[0].setProps({
+                      getReferenceClientRect: props.clientRect,
+                    })
+                  },
+                  onKeyDown(props: any) {
+                    if (props.event.key === 'Escape') {
+                      popup[0].hide()
+                      return true
+                    }
+                    return component.ref?.onKeyDown(props)
+                  },
+                  onExit() {
+                    popup[0].destroy()
+                    component.destroy()
+                  },
+                }
+              },
+              command: ({ editor, range, props }: any) => {
+                const typeId = props.id
+                const elementType = ELEMENT_TYPES.find(e => e.id === typeId) || { label: "Element" }
+                const elementKey = `${typeId}_${Date.now()}`
+
+                editor
+                  .chain()
+                  .focus()
+                  .deleteRange(range)
+                  .insertContent({
+                    type: "formElement",
+                    attrs: {
+                      elementType: typeId,
+                      label: elementType.label,
+                      elementKey: elementKey,
+                      defaultValue: "",
+                      required: false,
+                      options: typeId === 'select' || typeId === 'multiselect' ? { values: [] } : null,
+                    },
+                  })
+                  // Select inserted node
+                  .command(({ dispatch }: any) => {
+                    if (dispatch) {
+                      const pos = range.from
+                      try {
+                        (editor as any).commands.setNodeSelection(pos);
+                        return true;
+                      } catch (e) {
+                        console.error("Failed to set node selection", e);
+                        return false;
+                      }
+                    }
+                    return false
+                  })
+                  .run()
+              },
+            }),
+          ]
+        },
+      }),
+      Extension.create({
+        name: 'keyboardShortcuts',
+        addKeyboardShortcuts() {
+          return {
+            'Mod-Space': () => {
+              this.editor.commands.insertContent('/')
+              return true
+            },
+          }
+        }
+      })
+    ] as any[],
     content: initialContent || selectedTemplate?.templateContent || "<p>Loading...</p>",
     editorProps: {
       attributes: {
@@ -123,7 +264,7 @@ export function NoteEditor({
       },
     },
     editable: true,
-  })
+  } as any)
 
   // Consolidate content loading and form element synchronization to prevent race conditions
   useEffect(() => {
@@ -139,7 +280,12 @@ export function NoteEditor({
 
     if (contentToSet) {
       // Set content synchronously to avoid race conditions with attribute syncing
-      editor.commands.setContent(contentToSet)
+      try {
+        editor.commands.setContent(contentToSet)
+      } catch (e) {
+        console.error("Tiptap setContent error in NoteEditor:", e)
+        editor.commands.setContent(JSON.stringify(contentToSet))
+      }
     }
 
     // 2. Handle attribute synchronization (Auto-fill)
@@ -176,7 +322,12 @@ export function NoteEditor({
       onVersionRestore(version)
       if (version.noteContent) {
         setTimeout(() => {
-          editor.commands.setContent(version.noteContent)
+          try {
+            editor.commands.setContent(version.noteContent)
+          } catch (e) {
+            console.error("Tiptap version restore error:", e)
+            editor.commands.setContent(JSON.stringify(version.noteContent))
+          }
         }, 0)
       }
       setIsVersionDialogOpen(false)
@@ -232,6 +383,30 @@ export function NoteEditor({
             return `<span><strong>${fieldValue || ""}</strong></span>`
           }
 
+          if (elementType === "datetime") {
+            let displayValue = fieldValue || ""
+            if (fieldValue) {
+              try {
+                const date = new Date(fieldValue)
+                if (!isNaN(date.getTime())) {
+                  const day = String(date.getDate()).padStart(2, '0')
+                  const month = String(date.getMonth() + 1).padStart(2, '0')
+                  const year = date.getFullYear()
+                  let hours = date.getHours()
+                  const minutes = String(date.getMinutes()).padStart(2, '0')
+                  const ampm = hours >= 12 ? 'pm' : 'am'
+                  hours = hours % 12 || 12
+                  if (node.attrs?.showTimeOnly) {
+                    displayValue = `${hours}:${minutes}${ampm}`
+                  } else {
+                    displayValue = `${day}-${month}-${year} ${hours}:${minutes}${ampm}`
+                  }
+                }
+              } catch { }
+            }
+            return `<span><strong>${displayValue}</strong></span>`
+          }
+
           if (elementType === "signature") {
             if (fieldValue && typeof fieldValue === 'string') {
               try {
@@ -245,7 +420,7 @@ export function NoteEditor({
             return ``
           }
 
-          if (elementType === "input" || elementType === "textarea" || elementType === "datetime" || elementType === "voice_to_text" || elementType === "numeric") {
+          if (elementType === "input" || elementType === "textarea" || elementType === "voice_to_text" || elementType === "numeric") {
             return `<span><strong>${fieldValue || ""}</strong></span>`
           }
 
@@ -500,7 +675,10 @@ export function NoteEditor({
 }
 
 const FieldInput = memo(function FieldInput({ element, value, onChange, onPhysicalExamClick }: any) {
-  const { elementType, label, required, placeholder, options, dataField } = element
+  const {
+    elementType, label, required, placeholder, options, dataField, showTimeOnly,
+    minLength, maxLength, pattern, min, max, step
+  } = element
   const [isRecording, setIsRecording] = useState(false)
   const [isSignatureOpen, setIsSignatureOpen] = useState(false)
   const recognitionRef = useRef<any>(null)
@@ -563,12 +741,18 @@ const FieldInput = memo(function FieldInput({ element, value, onChange, onPhysic
       try {
         const date = new Date(value)
         if (!isNaN(date.getTime())) {
-          const year = date.getFullYear()
-          const month = String(date.getMonth() + 1).padStart(2, '0')
-          const day = String(date.getDate()).padStart(2, '0')
-          const hours = String(date.getHours()).padStart(2, '0')
-          const minutes = String(date.getMinutes()).padStart(2, '0')
-          inputValue = `${year}-${month}-${day}T${hours}:${minutes}`
+          if (showTimeOnly) {
+            const hours = String(date.getHours()).padStart(2, '0')
+            const minutes = String(date.getMinutes()).padStart(2, '0')
+            inputValue = `${hours}:${minutes}`
+          } else {
+            const year = date.getFullYear()
+            const month = String(date.getMonth() + 1).padStart(2, '0')
+            const day = String(date.getDate()).padStart(2, '0')
+            const hours = String(date.getHours()).padStart(2, '0')
+            const minutes = String(date.getMinutes()).padStart(2, '0')
+            inputValue = `${year}-${month}-${day}T${hours}:${minutes}`
+          }
         }
       } catch { }
     }
@@ -599,16 +783,26 @@ const FieldInput = memo(function FieldInput({ element, value, onChange, onPhysic
           {label}{required && <span className="text-red-500">*</span>}
         </Label>
         <Input
-          type={elementType === "numeric" ? "number" : elementType === "datetime" ? "datetime-local" : "text"}
+          type={elementType === "numeric" ? "number" : elementType === "datetime" ? (showTimeOnly ? "time" : "datetime-local") : "text"}
           value={inputValue}
           onChange={(e) => {
             if (elementType === "datetime") {
-              onChange(e.target.value ? new Date(e.target.value).toISOString() : e.target.value)
+              if (showTimeOnly) {
+                onChange(e.target.value)
+              } else {
+                onChange(e.target.value ? new Date(e.target.value).toISOString() : e.target.value)
+              }
             } else {
               onChange(e.target.value)
             }
           }}
           placeholder={placeholder}
+          minLength={minLength}
+          maxLength={maxLength}
+          pattern={pattern}
+          min={min}
+          max={max}
+          step={step}
           className="h-6 text-[10px] flex-1"
         />
       </div>
@@ -625,6 +819,8 @@ const FieldInput = memo(function FieldInput({ element, value, onChange, onPhysic
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
+          minLength={minLength}
+          maxLength={maxLength}
           className="min-h-[60px] text-[10px] flex-1"
         />
       </div>

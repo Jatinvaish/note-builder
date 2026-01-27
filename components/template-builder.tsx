@@ -127,14 +127,14 @@ export function TemplateBuilder({
 
       await onSave(updatedTemplate)
       setLastSaved(new Date())
-      
+
       // Reload versions after save
       const { getTemplate } = await import("@/lib/template-storage")
       const saved = getTemplate(updatedTemplate.id)
       if (saved) {
         setVersions(saved.versionHistory || [])
       }
-      
+
       toast({
         title: "Success",
         description: "Template saved successfully",
@@ -162,16 +162,16 @@ export function TemplateBuilder({
       const mammoth = (await import('mammoth')).default
       const arrayBuffer = await file.arrayBuffer()
       const result = await mammoth.convertToHtml({ arrayBuffer })
-      
+
       if (editor) {
         editor.commands.setContent(result.value)
       }
-      
+
       toast({
         title: "Success",
         description: "Document imported successfully",
       })
-      
+
       event.target.value = ''
     } catch (error) {
       console.error('Import error:', error)
@@ -185,7 +185,7 @@ export function TemplateBuilder({
 
   const convertHTMLToTipTap = (element: HTMLElement): any => {
     const content: any[] = []
-    
+
     const processNode = (node: Node): any => {
       if (node.nodeType === Node.TEXT_NODE) {
         const text = node.textContent || ''
@@ -194,19 +194,19 @@ export function TemplateBuilder({
         }
         return null
       }
-      
+
       if (node.nodeType === Node.ELEMENT_NODE) {
         const el = node as HTMLElement
         const tag = el.tagName.toLowerCase()
         const children = Array.from(el.childNodes).map(processNode).filter(Boolean)
-        
+
         if (tag === 'p') {
           return {
             type: 'paragraph',
             content: children.length ? children : [{ type: 'text', text: '' }]
           }
         }
-        
+
         if (tag.match(/^h[1-6]$/)) {
           return {
             type: 'heading',
@@ -214,7 +214,7 @@ export function TemplateBuilder({
             content: children.length ? children : [{ type: 'text', text: '' }]
           }
         }
-        
+
         if (tag === 'strong' || tag === 'b') {
           return children.map((c: any) => {
             if (c.type === 'text') {
@@ -223,7 +223,7 @@ export function TemplateBuilder({
             return c
           })
         }
-        
+
         if (tag === 'em' || tag === 'i') {
           return children.map((c: any) => {
             if (c.type === 'text') {
@@ -232,7 +232,7 @@ export function TemplateBuilder({
             return c
           })
         }
-        
+
         if (tag === 'u') {
           return children.map((c: any) => {
             if (c.type === 'text') {
@@ -241,7 +241,7 @@ export function TemplateBuilder({
             return c
           })
         }
-        
+
         if (tag === 'ul') {
           const items = Array.from(el.querySelectorAll(':scope > li')).map(li => ({
             type: 'listItem',
@@ -252,7 +252,7 @@ export function TemplateBuilder({
           }))
           return { type: 'bulletList', content: items }
         }
-        
+
         if (tag === 'ol') {
           const items = Array.from(el.querySelectorAll(':scope > li')).map(li => ({
             type: 'listItem',
@@ -263,7 +263,7 @@ export function TemplateBuilder({
           }))
           return { type: 'orderedList', content: items }
         }
-        
+
         if (tag === 'table') {
           const rows = Array.from(el.querySelectorAll('tr')).map(tr => ({
             type: 'tableRow',
@@ -277,17 +277,17 @@ export function TemplateBuilder({
           }))
           return { type: 'table', content: rows }
         }
-        
+
         if (tag === 'br') {
           return { type: 'hardBreak' }
         }
-        
+
         return children
       }
-      
+
       return null
     }
-    
+
     element.childNodes.forEach(node => {
       const result = processNode(node)
       if (result) {
@@ -298,7 +298,7 @@ export function TemplateBuilder({
         }
       }
     })
-    
+
     return { type: 'doc', content: content.length ? content : [{ type: 'paragraph', content: [] }] }
   }
 
@@ -375,11 +375,16 @@ export function TemplateBuilder({
     setTemplateContent(version.templateContent)
     setVersions(template?.versionHistory || [])
     setIsVersionDialogOpen(false)
-    
+
     if (editor) {
-      editor.commands.setContent(version.templateContent)
+      try {
+        editor.commands.setContent(version.templateContent)
+      } catch (e) {
+        console.error("Tiptap version restore error:", e)
+        editor.commands.setContent(JSON.stringify(version.templateContent))
+      }
     }
-    
+
     toast({
       title: "Version Restored",
       description: `Restored to version ${version.version}`,
@@ -548,6 +553,7 @@ export function TemplateBuilder({
             <TabsContent value="properties" className="flex-1 overflow-y-auto p-3">
               {selectedElementId && (
                 <ElementPropertiesPanel
+                  key={selectedElementId}
                   elementId={selectedElementId}
                   groups={groups}
                   templateContent={templateContent}
