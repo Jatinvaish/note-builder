@@ -77,6 +77,26 @@ export function ElementPropertiesPanel({
     }, 0)
   }, [element, elementId, templateContent, onUpdate])
 
+  const handleDataFieldSelect = useCallback((field: any) => {
+    const isClearing = attrs.dataField === field.id
+    const updated = {
+      ...element,
+      attrs: {
+        ...element.attrs,
+        dataField: isClearing ? "" : field.id,
+        label: isClearing ? element.attrs.label : field.label,
+      },
+    }
+
+    setElement(updated)
+
+    // Defer the parent update to avoid setState during render
+    setTimeout(() => {
+      const newContent = updateElementInContent(templateContent, elementId, updated)
+      onUpdate(newContent)
+    }, 0)
+  }, [element, elementId, templateContent, onUpdate, attrs.dataField])
+
   const handleDelete = useCallback(() => {
     const newContent = removeElementFromContent(templateContent, elementId)
     onUpdate(newContent)
@@ -116,7 +136,7 @@ export function ElementPropertiesPanel({
         </Button>
       </div>
 
-      <Tabs defaultValue="properties" className="w-full">
+      <Tabs defaultValue="databinding" className="w-full">
         <TabsList className="w-full grid grid-cols-2">
           <TabsTrigger value="properties" className="text-xs">Properties</TabsTrigger>
           <TabsTrigger value="databinding" className="text-xs">Data Binding</TabsTrigger>
@@ -398,7 +418,7 @@ export function ElementPropertiesPanel({
                     key={field.id}
                     variant={attrs.dataField === field.id ? "default" : "outline"}
                     size="sm"
-                    onClick={() => handleUpdate("dataField", field.id === attrs.dataField ? "" : field.id)}
+                    onClick={() => handleDataFieldSelect(field)}
                     className={cn(
                       "h-7 text-[10px] font-normal transition-all",
                       attrs.dataField === field.id ? "bg-green-600 hover:bg-green-700 text-white" : "hover:bg-muted"

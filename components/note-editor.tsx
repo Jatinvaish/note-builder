@@ -17,6 +17,8 @@ import TableCell from "@tiptap/extension-table-cell"
 import TableHeader from "@tiptap/extension-table-header"
 import { FormElementExtension } from "@/lib/tiptap-extensions"
 import { Extension } from "@tiptap/core"
+import { fetcher } from "@/lib/fetcher"
+import { isEnhancedDataField } from "@/lib/data-field-types"
 import { Suggestion } from "@tiptap/suggestion"
 import { ReactRenderer } from "@tiptap/react"
 import tippy from "tippy.js"
@@ -681,12 +683,44 @@ const FieldInput = memo(function FieldInput({ element, value, onChange, onPhysic
   } = element
   const [isRecording, setIsRecording] = useState(false)
   const [isSignatureOpen, setIsSignatureOpen] = useState(false)
+  const [dynamicOptions, setDynamicOptions] = useState<{ value: string; label: string }[]>([])
+
+  const getApiForField = useMemo(() => {
+    if (!dataField) return null
+    const field = PREDEFINED_DATA_FIELDS.find(f => f.id === dataField)
+    return field && isEnhancedDataField(field) && field.actions?.type === 'API_CALL' ? field.actions.api : null
+  }, [dataField])
+
+  useEffect(() => {
+    if (getApiForField) {
+      const fetchOptions = async () => {
+        try {
+          const res = await fetcher({ path: `/${getApiForField}` }, { json: { keywords: "" } });
+          if (res?.success && Array.isArray(res.data)) {
+            setDynamicOptions(res.data.map((item: any) => {
+              if (typeof item === 'string') return { value: item, label: item }
+              if (getApiForField.includes('doctor')) {
+                const name = `${item.first_name || ''} ${item.last_name || ''}`.trim()
+                return { value: name, label: name }
+              }
+              const label = item.label || item.name || item.text || item.title || item.id || JSON.stringify(item)
+              const value = item.value || item.id || label
+              return { value, label }
+            }));
+          }
+        } catch (error) {
+          console.error("Error fetching dynamic options:", error);
+        }
+      };
+      fetchOptions();
+    }
+  }, [getApiForField]);
   const recognitionRef = useRef<any>(null)
   const isDrawingRef = useRef(false)
 
   const isPhysicalExamField = dataField && (() => {
     const field = PREDEFINED_DATA_FIELDS.find(f => f.id === dataField)
-    if (!field || !('actions' in field)) return false
+    if (!field || !isEnhancedDataField(field)) return false
     return field.actions?.type === 'MODEL_OPEN' && field.call_time?.on_click_element
   })()
 
@@ -732,6 +766,29 @@ const FieldInput = memo(function FieldInput({ element, value, onChange, onPhysic
       recognitionRef.current.start()
       setIsRecording(true)
     }
+  }
+
+  if (getApiForField && (elementType === "select" || elementType === "dropdown" || dataField === "doctorList")) {
+    const selectOptions = dynamicOptions
+    return (
+      <div className="flex items-center gap-1">
+        <Label className="text-[10px] w-20 flex-shrink-0">
+          {label}{required && <span className="text-red-500">*</span>}
+        </Label>
+        <Select value={value} onValueChange={onChange}>
+          <SelectTrigger className="h-6 text-[10px] flex-1 p-1">
+            <SelectValue placeholder={placeholder || `Select ${label}...`} />
+          </SelectTrigger>
+          <SelectContent>
+            {Array.isArray(selectOptions) && selectOptions.map((opt: any) => (
+              <SelectItem key={opt.value} value={opt.value} className="text-[10px]">
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    )
   }
 
   if (elementType === "input" || elementType === "datetime" || elementType === "numeric") {
@@ -1027,7 +1084,7 @@ const FieldInput = memo(function FieldInput({ element, value, onChange, onPhysic
     const selectOptions = options?.values || options || []
     return (
       <div className="flex items-center gap-1">
-        <Label className="text-[10px] w-24 flex-shrink-0">
+        <Label className="text-[10px] w-20 flex-shrink-0">
           {label}{required && <span className="text-red-500">*</span>}
         </Label>
         <Select value={value} onValueChange={onChange}>
