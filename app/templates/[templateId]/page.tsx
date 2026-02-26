@@ -1,14 +1,19 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import dynamic from "next/dynamic"
 import { useRouter, useParams } from "next/navigation"
 import Link from "next/link"
 import { templateApi } from "@/services/template-api"
-import { TemplateBuilder } from "@/components/template-builder"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 import type { Template } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
+
+const TemplateBuilder = dynamic(() => import("@/components/template-builder").then(m => ({ default: m.TemplateBuilder })), {
+  ssr: false,
+  loading: () => <div className="flex items-center justify-center h-screen text-sm text-muted-foreground">Loading editor...</div>,
+})
 
 export default function EditTemplatePage() {
   const router = useRouter()

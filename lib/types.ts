@@ -1,5 +1,7 @@
 export interface FormElement {
-  elementType: "input" | "checkbox" | "select" | "datetime" | "signature" | "textarea" | "speech" | "voice_to_text" | "dropdown" | "numeric" | "multiselect"
+  id?: string
+  elementType: "input" | "checkbox" | "select" | "datetime" | "signature" | "textarea" | "speech" | "voice_to_text" | "dropdown" | "numeric" | "multiselect" | "datatable" | "Model_open"
+  type?: string
   label: string
   elementKey: string
   defaultValue: string | boolean
@@ -9,11 +11,20 @@ export interface FormElement {
   helpText?: string
   metadata?: Record<string, any>
   hasMic?: boolean
+  voice_to_text?: boolean
   options?: SelectOptions | string[]
   group_id?: string | null
+  groupId?: string | null
   data_binding?: DataBinding | null
+  dataBinding?: DataBinding | null
   dataField?: string
+  dataFieldKey?: string
+  autoFill?: boolean
   showTimeOnly?: boolean
+  showDateOnly?: boolean
+  is_read_only?: boolean
+  is_visible?: boolean
+  value?: any
   minLength?: number
   maxLength?: number
   pattern?: string
@@ -80,12 +91,6 @@ export interface TemplateContent {
   content: ContentNode[]
 }
 
-export interface ContentNode {
-  type: "heading" | "paragraph" | "bulletList" | "orderedList" | "formElement"
-  attrs?: Record<string, unknown>
-  content?: ContentNode[] | TextNode[]
-}
-
 export interface TextNode {
   type: "text"
   text: string
@@ -93,15 +98,21 @@ export interface TextNode {
 }
 
 export interface Mark {
-  type: "bold" | "italic"
+  type: "bold" | "italic" | "underline" | "strike" | "link" | "textStyle" | "subscript" | "superscript"
+  attrs?: Record<string, any>
 }
 
 export interface ConsultationNote {
   id: string
   templateId: string
-  templateVersionId?: number // PR-8: Version pinning (snapshot of template at time of note creation)
+  templateVersionId?: number
   templateName: string
+  patientId?: string
+  admissionId?: string | number
   consultationData: Record<string, any>
+  data?: Record<string, any>
+  noteContent?: any
+  status?: string
   versionHistory: VersionEntry[]
   isActive?: boolean
   createdAt: string
@@ -112,5 +123,12 @@ export interface VersionEntry {
   version: number
   timestamp: string
   data: Record<string, any>
+  noteContent?: any
   changedFields?: string[]
+}
+
+export interface ContentNode {
+  type: "heading" | "paragraph" | "bulletList" | "orderedList" | "formElement" | "table" | "tableRow" | "tableCell" | "tableHeader" | "taskList" | "taskItem" | "image" | "hardBreak"
+  attrs?: Record<string, unknown>
+  content?: ContentNode[] | TextNode[]
 }

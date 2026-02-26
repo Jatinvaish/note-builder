@@ -1,18 +1,29 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useCallback } from "react"
+import dynamic from "next/dynamic"
 import { useRouter } from "next/navigation"
 import { AppHeader } from "@/components/app-header"
-import { NoteEditor } from "@/components/note-editor"
 import { useToast } from "@/hooks/use-toast"
 import { templateApi } from "@/services/template-api"
 import { consultationNoteApi } from "@/services/consultation-note-api"
 import { PREDEFINED_DATA_FIELDS } from "@/lib/predefined-data-fields"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { PhysicalExaminationModal, PhysicalExamConfig } from "@/components/physical-examination-modal"
+import type { PhysicalExamConfig } from "@/components/physical-examination-modal"
 
+const NoteEditor = dynamic(() => import("@/components/note-editor").then(m => ({ default: m.NoteEditor })), {
+  ssr: false,
+  loading: () => <div className="flex items-center justify-center h-64 text-sm text-muted-foreground">Loading editor...</div>,
+})
 
+const PhysicalExaminationModal = dynamic(() => import("@/components/physical-examination-modal").then(m => ({ default: m.PhysicalExaminationModal })), {
+  ssr: false,
+})
+
+const NotePreviewPanel = dynamic(
+  () => import("@/components/note-preview-panel").then(m => ({ default: m.NotePreviewPanel })),
+  { ssr: false, loading: () => <div className="flex items-center justify-center h-full text-sm text-muted-foreground">Loading preview...</div> }
+)
 
 const extractFormElements = (content: any): any[] => {
   const elements: any[] = []
@@ -46,6 +57,11 @@ export default function CreateNotePage() {
   const [showPhysicalExamModal, setShowPhysicalExamModal] = useState(false)
   const [physicalExamConfig, setPhysicalExamConfig] = useState<PhysicalExamConfig | null>(null)
   const [currentExamField, setCurrentExamField] = useState<string | null>(null)
+  const [editorInstance, setEditorInstance] = useState<any>(null)
+
+  const handleEditorReady = useCallback((editor: any) => {
+    setEditorInstance(editor)
+  }, [])
 
   // Mock patient/admission IDs and user data - replace with actual values from context/props
   const admissionId = 76
@@ -348,20 +364,43 @@ export default function CreateNotePage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="h-screen flex flex-col">
       <AppHeader />
-      <div className="flex-1">
-        <NoteEditor
-          templates={templates}
-          selectedTemplate={selectedTemplate}
-          formData={formData}
-          onTemplateSelect={handleTemplateSelect}
-          onDataChange={handleDataChange}
-          onSave={handleSave}
-          versionHistory={[]}
-          onVersionRestore={handleVersionRestore}
-          onPhysicalExamClick={handlePhysicalExamClick}
-        />
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left: Preview Panel (sidebar + A4 paper) */}
+        <div className="flex-1 min-w-0 border-r">
+          <NotePreviewPanel
+            editor={editorInstance}
+            selectedTemplateId={selectedTemplate?.id?.toString() || ""}
+            formData={formData}
+            onSave={async () => { await handleSave(editorInstance?.getJSON()) }}
+            onNewNote={() => {
+              setSelectedTemplate(null)
+              setFormData({})
+              setNoteId(null)
+            }}
+            isEditMode={!!noteId}
+            admissionId={admissionId}
+            patientId={mockActivePatient.patientId}
+          />
+        </div>
+        {/* Right: Fields sidebar only (no editor content) */}
+        <div className="w-[380px] min-w-[300px] overflow-hidden border-l">
+          <NoteEditor
+            templates={templates}
+            selectedTemplate={selectedTemplate}
+            formData={formData}
+            onTemplateSelect={handleTemplateSelect}
+            onDataChange={handleDataChange}
+            onSave={handleSave}
+            versionHistory={[]}
+            onVersionRestore={handleVersionRestore}
+            onPhysicalExamClick={handlePhysicalExamClick}
+            isEditMode={!!noteId}
+            hideEditorContent={true}
+            onEditorReady={handleEditorReady}
+          />
+        </div>
       </div>
 
       <PhysicalExaminationModal

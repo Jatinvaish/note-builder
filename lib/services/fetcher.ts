@@ -25,35 +25,21 @@ export const fetcher = async (
   }: FetcherProps,
   kyOptions?: Parameters<typeof ky>[1]
 ) => {
-  console.log(path)
-  console.log("___________________________________")
-  
   const isFormData = kyOptions?.body instanceof FormData
 
   if (isFormData && shouldEncrypt) {
     const formData = kyOptions.body as FormData
     const dataValue = formData.get('data')
-    
+
     if (dataValue && typeof dataValue === 'string') {
       try {
         const jsonData = JSON.parse(dataValue)
         const encryptedData = await e(jsonData)
         formData.set('data', encryptedData)
-        console.log("API " + path + " FormData (data encrypted):")
       } catch (err) {
-        console.error("Failed to encrypt FormData data:", err)
+        // encryption failed, continue with unencrypted data
       }
     }
-    
-    for (let pair of formData.entries()) {
-      if (pair[1] instanceof File) {
-        console.log(pair[0], `File: ${pair[1].name} (${pair[1].size} bytes)`)
-      } else {
-        console.log(pair[0], pair[0] === 'data' ? '[encrypted]' : pair[1])
-      }
-    }
-  } else if (!isFormData) {
-    console.log("API " + path + " Req Body ", kyOptions?.json)
   }
 
   if (shouldEncrypt && kyOptions?.json && !isFormData) {
@@ -123,9 +109,6 @@ export const fetcher = async (
         return null
       } else if (response.status >= 400 && response.status < 500) {
         const errResponse = await response.json()
-        console.log(path)
-        console.log("___________________________________")
-        console.log("API " + path + " Response Body ", errResponse)
         return errResponse
       } else {
         return {}
@@ -141,17 +124,11 @@ export const fetcher = async (
   }
   
   if (!shouldDecrypt) {
-    console.log(path)
-    console.log("___________________________________")
-    console.log("API " + path + " Response Body (no decryption) ", json)
     return json
   }
 
   const encJsonString = json?.message
   const decJsonString = await d(encJsonString!)
   const decJson = JSON.parse(decJsonString)
-  console.log(path)
-  console.log("___________________________________")
-  console.log("API " + path + " Response Body ", decJson)
   return decJson
 }

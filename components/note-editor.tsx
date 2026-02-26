@@ -11,13 +11,10 @@ import { TextStyle } from "@tiptap/extension-text-style"
 import { Color } from "@tiptap/extension-color"
 import { Highlight } from "@tiptap/extension-highlight"
 import { FontFamily } from "@tiptap/extension-font-family"
-import { Table } from "@tiptap/extension-table"
 import TableRow from "@tiptap/extension-table-row"
-import TableCell from "@tiptap/extension-table-cell"
-import TableHeader from "@tiptap/extension-table-header"
-import { FormElementExtension } from "@/lib/tiptap-extensions"
+import { FormElementExtension, DataBoundTable, DataBoundTableCell, DataBoundTableHeader } from "@/lib/tiptap-extensions"
 import { Extension } from "@tiptap/core"
-import { fetcher } from "@/lib/fetcher"
+import { fetcher } from "@/lib/services/fetcher"
 import { isEnhancedDataField } from "@/lib/data-field-types"
 import { Suggestion } from "@tiptap/suggestion"
 import { ReactRenderer } from "@tiptap/react"
@@ -112,6 +109,10 @@ interface NoteEditorProps {
   isEditMode?: boolean
   initialContent?: any
   onPhysicalExamClick?: (fieldId: string) => void
+  /** When true, hides the center editor area and only shows the fields sidebar */
+  hideEditorContent?: boolean
+  /** Callback to expose the TipTap editor instance to parent */
+  onEditorReady?: (editor: any) => void
 }
 
 export function NoteEditor({
@@ -125,7 +126,9 @@ export function NoteEditor({
   onVersionRestore,
   isEditMode = false,
   initialContent,
-  onPhysicalExamClick
+  onPhysicalExamClick,
+  hideEditorContent = false,
+  onEditorReady,
 }: NoteEditorProps) {
   const { toast } = useToast()
   const [isVersionDialogOpen, setIsVersionDialogOpen] = useState(false)
@@ -145,10 +148,10 @@ export function NoteEditor({
       Link.configure({ openOnClick: false, autolink: true }),
       Image.configure({ HTMLAttributes: { class: "rounded-lg max-w-full" } }),
       TextAlign.configure({ types: ["heading", "paragraph"] }),
-      Table.configure({ resizable: true }),
+      DataBoundTable.configure({ resizable: true }),
       TableRow,
-      TableHeader,
-      TableCell,
+      DataBoundTableHeader,
+      DataBoundTableCell,
       FormElementExtension,
       Extension.create({
         name: 'suggestionEx',
@@ -251,6 +254,60 @@ export function NoteEditor({
         name: 'keyboardShortcuts',
         addKeyboardShortcuts() {
           return {
+            Tab: () => {
+              const { state } = this.editor.view
+              const { selection } = state
+              const { from } = selection
+
+              // Check for smart shortcuts
+              const textBefore = state.doc.textBetween(Math.max(0, from - 10), from).toLowerCase()
+
+              const match = Object.entries(SHORTCUT_MAP).find(([key]) => {
+                if (!textBefore.endsWith(key)) return false;
+                const charBeforeKey = state.doc.textBetween(Math.max(0, from - key.length - 1), from - key.length)
+                return !charBeforeKey || charBeforeKey === ' ' || charBeforeKey === '\n' || charBeforeKey === '\u00A0';
+              });
+
+              if (match) {
+                const [key, typeId] = match
+                const elementType = ELEMENT_TYPES.find(e => e.id === typeId) || { label: "Element" }
+                const elementKey = `${typeId}_${Date.now()}`
+
+                this.editor.chain()
+                  .deleteRange({ from: from - key.length, to: from })
+                  .insertContent({
+                    type: "formElement",
+                    attrs: {
+                      elementType: typeId,
+                      label: elementType.label,
+                      elementKey: elementKey,
+                      defaultValue: "",
+                      required: false,
+                      options: typeId === 'select' || typeId === 'multiselect' ? { values: [] } : null,
+                    },
+                  })
+                  .command(({ dispatch }) => {
+                    if (dispatch) {
+                      const pos = from - key.length;
+                      try {
+                        (this.editor as any).commands.setNodeSelection(pos);
+                        return true;
+                      } catch (e) {
+                        return false;
+                      }
+                    }
+                    return false
+                  })
+                  .run()
+                return true
+              }
+
+              if (this.editor.isActive('listItem')) return false
+              if (this.editor.isActive('table')) return false
+
+              this.editor.commands.insertContent('\u00A0\u00A0\u00A0\u00A0')
+              return true
+            },
             'Mod-Space': () => {
               this.editor.commands.insertContent('/')
               return true
@@ -267,6 +324,13 @@ export function NoteEditor({
     },
     editable: true,
   } as any)
+
+  // Expose editor to parent when ready
+  useEffect(() => {
+    if (editor && onEditorReady) {
+      onEditorReady(editor)
+    }
+  }, [editor, onEditorReady])
 
   // Consolidate content loading and form element synchronization to prevent race conditions
   useEffect(() => {
@@ -524,41 +588,43 @@ export function NoteEditor({
 
   return (
     <div className="flex h-full">
-      <div className="w-[250px] border-r bg-white" />
+      {!hideEditorContent && <div className="w-[250px] border-r bg-white" />}
 
-      <div className="flex-1 overflow-y-auto p-6">
-        {selectedTemplate ? (
-          <div className="max-w-[900px] mx-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">{selectedTemplate.templateName}</h2>
-              <div className="flex gap-2">
-                {versionHistory.length > 0 && (
-                  <Button size="sm" variant="outline" onClick={() => setIsVersionDialogOpen(true)} className="gap-1">
-                    <Clock className="w-4 h-4" />
-                    Versions ({versionHistory.length})
+      {!hideEditorContent && (
+        <div className="flex-1 overflow-y-auto p-6">
+          {selectedTemplate ? (
+            <div className="max-w-[900px] mx-auto">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold">{selectedTemplate.templateName}</h2>
+                <div className="flex gap-2">
+                  {versionHistory.length > 0 && (
+                    <Button size="sm" variant="outline" onClick={() => setIsVersionDialogOpen(true)} className="gap-1">
+                      <Clock className="w-4 h-4" />
+                      Versions ({versionHistory.length})
+                    </Button>
+                  )}
+                  <Button size="sm" variant="outline" onClick={handlePdfPreview} className="gap-1">
+                    <Download className="w-4 h-4" />
+                    PDF
                   </Button>
-                )}
-                <Button size="sm" variant="outline" onClick={handlePdfPreview} className="gap-1">
-                  <Download className="w-4 h-4" />
-                  PDF
-                </Button>
-                <Button size="sm" onClick={() => onSave(editor?.getJSON())}>
-                  {isEditMode ? "Update" : "Save"}
-                </Button>
+                  <Button size="sm" onClick={() => onSave(editor?.getJSON())}>
+                    {isEditMode ? "Update" : "Save"}
+                  </Button>
+                </div>
+              </div>
+              <div className="bg-white border rounded-md shadow-sm">
+                <EditorContent editor={editor} />
               </div>
             </div>
-            <div className="bg-white border rounded-md shadow-sm">
-              <EditorContent editor={editor} />
+          ) : (
+            <div className="flex items-center justify-center h-full">
+              <p className="text-gray-500">Select a template from the right panel to start</p>
             </div>
-          </div>
-        ) : (
-          <div className="flex items-center justify-center h-full">
-            <p className="text-gray-500">Select a template from the right panel to start</p>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
-      <div className="w-[380px] border-l border-t border-r border-b bg-white overflow-y-auto p-3">
+      <div className={hideEditorContent ? "flex-1 border-l bg-white overflow-y-auto p-3" : "w-[380px] border-l border-t border-r border-b bg-white overflow-y-auto p-3"}>
         <div className="mb-3">
           <p className="text-[10px] font-semibold mb-1.5 uppercase">Select Template</p>
           <Select value={selectedTemplate?.id?.toString() || ""} onValueChange={onTemplateSelect} disabled={isEditMode}>

@@ -1,12 +1,22 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
+import dynamic from "next/dynamic"
 import { useRouter, useParams } from "next/navigation"
-import { NoteEditor } from "@/components/note-editor"
 import { AppHeader } from "@/components/app-header"
 import { useToast } from "@/hooks/use-toast"
 import { consultationNoteApi } from "@/services/consultation-note-api"
 import { templateApi } from "@/services/template-api"
+
+const NoteEditor = dynamic(() => import("@/components/note-editor").then(m => ({ default: m.NoteEditor })), {
+  ssr: false,
+  loading: () => <div className="flex items-center justify-center h-64 text-sm text-muted-foreground">Loading editor...</div>,
+})
+
+const NotePreviewPanel = dynamic(
+  () => import("@/components/note-preview-panel").then(m => ({ default: m.NotePreviewPanel })),
+  { ssr: false, loading: () => <div className="flex items-center justify-center h-full text-sm text-muted-foreground">Loading preview...</div> }
+)
 
 export default function EditNotePage() {
   const router = useRouter()
@@ -19,6 +29,11 @@ export default function EditNotePage() {
   const [formData, setFormData] = useState<Record<string, any>>({})
   const [noteContent, setNoteContent] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [editorInstance, setEditorInstance] = useState<any>(null)
+
+  const handleEditorReady = useCallback((editor: any) => {
+    setEditorInstance(editor)
+  }, [])
 
   useEffect(() => {
     const loadData = async () => {
@@ -105,21 +120,37 @@ export default function EditNotePage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="h-screen flex flex-col">
       <AppHeader />
-      <div className="flex-1">
-        <NoteEditor
-          templates={templates}
-          selectedTemplate={selectedTemplate}
-          formData={formData}
-          onTemplateSelect={handleTemplateSelect}
-          onDataChange={handleDataChange}
-          onSave={handleSave}
-          versionHistory={note.versionHistory || []}
-          onVersionRestore={handleVersionRestore}
-          isEditMode={true}
-          initialContent={noteContent}
-        />
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left: Preview Panel */}
+        <div className="flex-1 min-w-0 border-r">
+          <NotePreviewPanel
+            editor={editorInstance}
+            selectedTemplateId={selectedTemplate?.id?.toString() || ""}
+            formData={formData}
+            onSave={async () => { await handleSave(editorInstance?.getJSON()) }}
+            isEditMode={true}
+            admissionId={note.admissionId || 76}
+          />
+        </div>
+        {/* Right: Fields sidebar only */}
+        <div className="w-[380px] min-w-[300px] overflow-hidden border-l">
+          <NoteEditor
+            templates={templates}
+            selectedTemplate={selectedTemplate}
+            formData={formData}
+            onTemplateSelect={handleTemplateSelect}
+            onDataChange={handleDataChange}
+            onSave={handleSave}
+            versionHistory={note.versionHistory || []}
+            onVersionRestore={handleVersionRestore}
+            isEditMode={true}
+            initialContent={noteContent}
+            hideEditorContent={true}
+            onEditorReady={handleEditorReady}
+          />
+        </div>
       </div>
     </div>
   )

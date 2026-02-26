@@ -52,4 +52,41 @@ export const consultationNoteApi = {
         const response = await fetcher({ path: "/api/custom-notes/restore-version" }, { json: { noteId, version } })
         return response?.version || response
     },
+
+    // Download PDF for a note (returns base64)
+    async downloadPdf(noteId: number) {
+        return await fetcher({ path: "/api/custom-notes/download-pdf" }, { json: { noteId } })
+    },
+
+    // Upload documents for a note
+    async uploadDocuments(noteId: number, files: File[], patientId?: number | null, comment?: string) {
+        const formData = new FormData()
+        formData.append("data", JSON.stringify({
+            noteId,
+            patientId: patientId || null,
+            comment: comment || null,
+        }))
+        files.forEach(f => formData.append("files", f))
+        return await fetcher({ path: "/api/custom-notes/upload-documents" }, { body: formData })
+    },
+
+    // Get documents for a note
+    async getDocuments(noteId: number) {
+        return await fetcher({ path: "/api/custom-notes/get-documents" }, { json: { noteId } })
+    },
+
+    // Delete a document
+    async deleteDocument(documentId: number) {
+        return await fetcher({ path: "/api/custom-notes/delete-document" }, { json: { documentId } })
+    },
+
+    // Get admission info (patient details)
+    async getAdmissionInfo(admissionId: number) {
+        return await fetcher({ path: "/user/admission-info" }, { json: { admissionId } })
+    },
+
+    // List notes by admission (using id parameter)
+    async listByAdmissionId(id: number): Promise<ConsultationNoteListItem[]> {
+        return await fetcher({ path: "/api/custom-notes/list-by-admission" }, { json: { id } })
+    },
 }

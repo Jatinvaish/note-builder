@@ -78,7 +78,8 @@ export function ElementPropertiesPanel({
   }, [element, elementId, templateContent, onUpdate])
 
   const handleDataFieldSelect = useCallback((field: any) => {
-    const isClearing = attrs.dataField === field.id
+    const currentAttrs = element?.attrs || {}
+    const isClearing = currentAttrs.dataField === field.id
     const updated = {
       ...element,
       attrs: {
@@ -95,7 +96,7 @@ export function ElementPropertiesPanel({
       const newContent = updateElementInContent(templateContent, elementId, updated)
       onUpdate(newContent)
     }, 0)
-  }, [element, elementId, templateContent, onUpdate, attrs.dataField])
+  }, [element, elementId, templateContent, onUpdate])
 
   const handleDelete = useCallback(() => {
     const newContent = removeElementFromContent(templateContent, elementId)
@@ -249,15 +250,43 @@ export function ElementPropertiesPanel({
             <Label htmlFor="required" className="text-xs font-medium cursor-pointer">Mark as Required</Label>
           </div>
 
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="is_read_only"
+              checked={attrs.is_read_only || false}
+              onCheckedChange={(checked) => handleUpdate("is_read_only", checked)}
+            />
+            <Label htmlFor="is_read_only" className="text-xs font-medium cursor-pointer">Read Only</Label>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="is_visible"
+              checked={attrs.is_visible !== false}
+              onCheckedChange={(checked) => handleUpdate("is_visible", checked)}
+            />
+            <Label htmlFor="is_visible" className="text-xs font-medium cursor-pointer">Visible</Label>
+          </div>
+
           {attrs.elementType === "datetime" && (
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="showTimeOnly"
-                checked={attrs.showTimeOnly || false}
-                onCheckedChange={(checked) => handleUpdate("showTimeOnly", checked)}
-              />
-              <Label htmlFor="showTimeOnly" className="text-xs font-medium cursor-pointer text-orange-700">Show Time Only</Label>
-            </div>
+            <>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="showTimeOnly"
+                  checked={attrs.showTimeOnly || false}
+                  onCheckedChange={(checked) => handleUpdate("showTimeOnly", checked)}
+                />
+                <Label htmlFor="showTimeOnly" className="text-xs font-medium cursor-pointer text-orange-700">Show Time Only</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="showDateOnly"
+                  checked={attrs.showDateOnly || false}
+                  onCheckedChange={(checked) => handleUpdate("showDateOnly", checked)}
+                />
+                <Label htmlFor="showDateOnly" className="text-xs font-medium cursor-pointer text-orange-700">Show Date Only</Label>
+              </div>
+            </>
           )}
 
           {attrs.elementType === "select" && (
@@ -374,13 +403,21 @@ export function ElementPropertiesPanel({
               <Search className="w-3 h-3" />
               1. Search Fields
             </Label>
-            <div className="relative">
-              <Input
-                placeholder="Filter by name or ID..."
-                className="h-8 text-xs bg-muted/20"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+            <div className="relative flex gap-1">
+              <div className="relative flex-1">
+                <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Filter by name or ID..."
+                  className="h-8 text-xs bg-muted/20 pl-7"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              {searchTerm && (
+                <Button variant="ghost" size="sm" onClick={() => setSearchTerm("")} className="h-8 text-xs px-2">
+                  Clear
+                </Button>
+              )}
             </div>
           </div>
 

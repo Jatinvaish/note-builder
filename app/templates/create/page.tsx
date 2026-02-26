@@ -1,10 +1,15 @@
 "use client"
 
-import { TemplateBuilder } from "@/components/template-builder"
+import dynamic from "next/dynamic"
 import { useRouter } from "next/navigation"
 import { templateApi } from "@/services/template-api"
 import type { Template } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
+
+const TemplateBuilder = dynamic(() => import("@/components/template-builder").then(m => ({ default: m.TemplateBuilder })), {
+  ssr: false,
+  loading: () => <div className="flex items-center justify-center h-screen text-sm text-muted-foreground">Loading editor...</div>,
+})
 
 export default function CreateTemplatePage() {
   const router = useRouter()

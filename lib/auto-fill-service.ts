@@ -18,35 +18,53 @@ export class AutoFillService {
     if (dataFieldKeys.length === 0) return filledData
 
     const apiMap = getUniqueApiEndpoints(dataFieldKeys)
-    
+
+    // Fetch all unique endpoints in PARALLEL instead of sequentially
+    const uncachedEntries: [string, typeof configs][] = []
+    type configs = ReturnType<typeof getUniqueApiEndpoints> extends Map<string, infer V> ? V : never
+
     for (const [endpoint, configs] of apiMap.entries()) {
       if (!endpoint) continue
-      
       const cacheKey = `${endpoint}_${patientId}`
-      let apiData = this.cache.get(cacheKey)
-      
-      if (!apiData) {
-        try {
-          const payload = configs[0].apiPayloadKey === "id" ? { id: patientId } : { patientId }
+      if (!this.cache.has(cacheKey)) {
+        uncachedEntries.push([endpoint, configs as any])
+      }
+    }
+
+    // Fire all uncached API requests simultaneously
+    if (uncachedEntries.length > 0) {
+      const results = await Promise.allSettled(
+        uncachedEntries.map(async ([endpoint, configs]) => {
+          const payload = (configs as any)[0]?.apiPayloadKey === "id" ? { id: patientId } : { patientId }
           const response = await fetcher({ path: endpoint }, { json: payload })
-          apiData = response?.data || response
-          this.cache.set(cacheKey, apiData)
-        } catch (error) {
-          console.error(`Failed to fetch ${endpoint}:`, error)
-          continue
+          return { endpoint, data: response?.data || response }
+        })
+      )
+
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          const cacheKey = `${result.value.endpoint}_${patientId}`
+          this.cache.set(cacheKey, result.value.data)
         }
       }
-      
+    }
+
+    // Now map cached data to elements
+    for (const [endpoint] of apiMap.entries()) {
+      if (!endpoint) continue
+      const cacheKey = `${endpoint}_${patientId}`
+      const apiData = this.cache.get(cacheKey)
+      if (!apiData) continue
+
       for (const element of elements) {
         if (!element.dataField) continue
-        
+
         const config = getDataFieldByKey(element.dataField)
         if (!config || !config.autoFill) continue
-        
+
         if (config.apiEndpoint === endpoint) {
           const value = this.getNestedValue(apiData, config.dataPath)
           if (value !== undefined && value !== null) {
-            // Format timestamp - keep ISO for all (display conversion happens in UI)
             if (typeof value === 'number' && value > 1000000000000) {
               filledData[element.elementKey] = this.timestampToISO(value)
             } else {
